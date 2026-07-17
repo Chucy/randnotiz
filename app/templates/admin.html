@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Admin — Randnotiz{% endblock %}
+{% block content %}
+<main class="container admin">
+  <h1>📖 Dashboard</h1>
+  {% if books | length > 1 %}
+  <nav class="book-tabs">
+    {% for b in books %}
+    <a href="/admin?book={{ b.slug }}" class="book-tab {% if book and b.id == book.id %}active{% endif %}">{{ b.title }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+  {% if not book %}
+  <p>Kein Buch ingested — erst <code>python -m app.ingest … --new</code> ausführen.</p>
+  {% else %}
+  <h2 style="margin-top:0.5rem">{{ book.title }}</h2>
+  <p>
+    <a href="/api/export?book={{ book.slug }}">⬇ JSON-Export ({{ book.title }})</a>
+    &nbsp;·&nbsp;
+    <a href="/api/export">⬇ Export alle Bücher</a>
+    &nbsp;·&nbsp;
+    <form class="inline" method="post" action="/admin/logout" style="display:inline">
+      <button type="submit">🔓 Abmelden</button>
+    </form>
+  </p>
+
+  <div class="kpis">
+    <div class="kpi">
+      <span class="kpi-val">{{ readers_done }}/{{ readers|length }}</span>
+      <span class="kpi-lbl">Leser durch</span>
+    </div>
+    <div class="kpi {% if n_comments_open %}kpi-warn{% endif %}">
+      <span class="kpi-val">{{ n_comments_open }}</span>
+      <span class="kpi-lbl">offene Kommentare</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-val">{% if overall_avg is not none %}{{ overall_avg }}{% else %}—{% endif %}</span>
+      <span class="kpi-lbl">Ø Bewertung (1–5)</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-val">{% if weak %}Kap. {{ weak.num }}{% else %}—{% endif %}</span>
+      <span class="kpi-lbl">schwächstes Kapitel{% if weak %} (Ø {{ weak.avg }}){% endif %}</span>
+    </div>
+  </div>
+
+  <h2>Testleser ({{ readers | length }})</h2>
+  <form class="inline" method="post" action="/admin/reader?book={{ book.slug }}">
+    <input type="text" name="name" placeholder="Name des neuen Testlesers" required>
+    <button class="primary" type="submit">Leser anlegen</button>
+  </form>
+  <div class="reader-grid">
+    {% for r in readers %}
+    {% set pct = (r.n_chapters_done / total_chapters * 100) | round if total_chapters else 0 %}
+    <div class="reader-card">
+      <div class="rc-head">
+        <span class="rc-name">{{ r.name }}</span>
+        <span class="rc-activity">{{ r.activity }}</span>
+      </div>
+      <div class="rc-progress">
+        <div class="progress-track"><div class="progress-fill" style="width:{{ pct }}%"></div></div>
+        <span class="rc-progress-lbl">{{ r.n_chapters_done }}/{{ total_chapters }} Kapitel{% if r.last_chapter_num %} · bis Kap. {{ r.last_chapter_num }}{% endif %}</span>
+      </div>
+      <div class="rc-stats">💬 {{ r.n_comments }} Kommentare · ✅ {{ r.n_chapters_answered }} Kapitel bewertet</div>
+      <code class="rc-link">{{ base_url }}/r/{{ r.token }}</code>
+      <div class="rc-actions">
+        <form method="post" action="/admin/reader/{{ r.id }}/rotate?book={{ book.slug }}"
+              onsubmit="return confirm('Neuen Link für {{ r.name }} erzeugen? Der alte Link ist dann sofort ungültig.')">
+          <button type="submit" title="Alten Link ungültig machen, neuen erzeugen">🔄 Neuer Link</button>
+        </form>
+        <form method="post" action="/admin/reader/{{ r.id }}/delete?book={{ book.slug }}"
+              onsubmit="return confirm('{{ r.name }} wirklich löschen? Alle Kommentare, Reaktionen und Antworten dieses Lesers werden mit gelöscht!')">
+          <button type="submit" class="danger" title="Leser samt Feedback löschen">🗑 Löschen</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <p class="muted">Noch keine Testleser — oben anlegen.</p>
+    {% endfor %}
+  </div>
+
+  <h2 id="questions">Fragebogen ({{ questions | length }} Fragen, gelten für alle Kapitel dieses Buchs)</h2>
+  <form class="inline" method="post" action="/admin/question?book={{ book.slug }}">
+    <input type="text" name="text" placeholder="Neue Frage …" required style="min-width:24rem">
+    <select name="qtype">
+      <option value="scale">Skala 1–5</option>
+      <option value="text">Freitext</option>
+    </select>
+    <button class="primary" type="submit">Frage anlegen</button>
+  </form>
+  {% for q in questions %}
+  <form id="qf-{{ q.id }}" method="post" action="/admin/question/{{ q.id }}/update?book={{ book.slug }}"></form>
+  {% endfor %}
+  <table>
+    <tr><th>Pos.</th><th>Frage</th><th>Typ</th><th>Antworten</th><th>Aktionen</th></tr>
+    {% for q in questions %}
+    <tr>
+      <td><input form="qf-{{ q.id }}" type="number" name="pos" value="{{ q.pos }}" style="width:4rem"></td>
+      <td><input form="qf-{{ q.id }}" type="text" name="text" value="{{ q.text }}" required style="width:100%"></td>
+      <td>{% if q.qtype == 'scale' %}Skala 1–5{% else %}Freitext{% endif %}</td>
+      <td>{{ q.n_answers }}</td>
+      <td class="actions">
+        <button form="qf-{{ q.id }}" type="submit" title="Text/Position speichern">💾 Speichern</button>
+        <form method="post" action="/admin/question/{{ q.id }}/delete?book={{ book.slug }}"
+              onsubmit="return confirm('Frage wirklich löschen?{% if q.n_answers %} {{ q.n_answers }} vorhandene Antworten werden mit gelöscht!{% endif %}')">
+          <button type="submit" class="danger" title="Frage samt Antworten löschen">🗑</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2 id="comments">Kommentare
+    <small class="muted">({{ comments|length }} gezeigt · {{ n_comments_open }} offen · {{ n_comments_total }} gesamt)</small>
+  </h2>
+  <form class="filter-bar" method="get" action="/admin">
+    <input type="hidden" name="book" value="{{ book.slug }}">
+    <label>Status
+      <select name="status" onchange="this.form.submit()">
+        <option value="open" {% if filter_status == 'open' %}selected{% endif %}>Offen</option>
+        <option value="resolved" {% if filter_status == 'resolved' %}selected{% endif %}>Erledigt</option>
+        <option value="all" {% if filter_status == 'all' %}selected{% endif %}>Alle</option>
+      </select>
+    </label>
+    <label>Kapitel
+      <select name="chapter" onchange="this.form.submit()">
+        <option value="0">Alle</option>
+        {% for ch in chapter_list %}
+        <option value="{{ ch.num }}" {% if filter_chapter == ch.num %}selected{% endif %}>{{ ch.num }} — {{ ch.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Leser
+      <select name="reader" onchange="this.form.submit()">
+        <option value="0">Alle</option>
+        {% for r in readers %}
+        <option value="{{ r.id }}" {% if filter_reader == r.id %}selected{% endif %}>{{ r.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">Filtern</button></noscript>
+  </form>
+  {% if not filter_chapter %}
+  {# Übersicht: pro Kapitel eine Kachel — konstant klein, egal wie viele Kommentare im Buch stecken.
+     Klick auf eine Kachel zoomt in die gefilterte Detailliste (Status/Leser bleiben erhalten). #}
+  <div class="chapter-grid">
+    {% for cs in chapter_stats %}
+    <a class="chapter-tile {% if cs.n_open %}has-open{% endif %}"
+       href="/admin?book={{ book.slug }}&chapter={{ cs.num }}&status={{ filter_status }}{% if filter_reader %}&reader={{ filter_reader }}{% endif %}#comments">
+      <span class="ct-num">{{ cs.num }}</span>
+      <span class="ct-title">{{ cs.title }}</span>
+      <span class="ct-count">{% if cs.n_total %}{{ cs.n_open }} offen · {{ cs.n_total }} gesamt{% else %}—{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p><a href="/admin?book={{ book.slug }}&status={{ filter_status }}{% if filter_reader %}&reader={{ filter_reader }}{% endif %}#comments">← Übersicht</a></p>
+  {# Verdichtung: gleiche Textstelle (block_idx, innerhalb des gewählten Kapitels eindeutig) zu einer Card
+     bündeln — die Query ist schon nach block_idx sortiert, groupby genügt. Zeigt Konsens-Cluster statt N Zeilen. #}
+  {% for block_idx, group in comments | groupby('block_idx') %}
+  {% set nreaders = group | map(attribute='reader_name') | unique | list | length %}
+  <div class="comment-card">
+    <div class="cc-quote">„{{ group[0].quote[:160] }}{% if group[0].quote|length > 160 %}…{% endif %}"
+      {% if nreaders > 1 %}<span class="badge">{{ nreaders }} Leser</span>{% endif %}
+      {% if group | selectattr('orphaned') | list %}<span class="orphan-badge" title="Textstelle wurde beim Überarbeiten entfernt/stark geändert — Zitat zeigt die alte Fassung">⚠ verwaist</span>{% endif %}
+    </div>
+    {% for c in group %}
+    <div class="cc-entry {% if c.resolved %}resolved{% endif %}">
+      <span class="cc-reader">{{ c.reader_name }}</span>
+      <span class="cc-text">{{ c.text }}</span>
+      <span class="cc-meta">{{ c.created_at[:16] }}{% if c.edited_at %} <span title="vom Leser bearbeitet am {{ c.edited_at[:16] }}">✏️</span>{% endif %}</span>
+      <form method="post" action="/admin/comment/{{ c.id }}/toggle?book={{ book.slug }}&chapter={{ filter_chapter }}&status={{ filter_status }}&reader={{ filter_reader }}">
+        <button type="submit" title="{% if c.resolved %}Als offen markieren{% else %}Als eingearbeitet abhaken{% endif %}">
+          {% if c.resolved %}↩ offen{% else %}✓ erledigt{% endif %}
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Keine Kommentare für diesen Filter.</p>
+  {% endfor %}
+  {% endif %}
+
+  <h2>Reaktionen — Heatmap</h2>
+  {% if heatmap %}
+  <p class="muted">❤️ Stark · ❓ Unklar · 😴 Zäh — je Kapitel eine Zelle pro Absatz, Deckkraft = Anzahl. Zeigen per Maus für Details.</p>
+  <div class="heatmap">
+    {% for row in heatmap %}
+    <div class="hm-row">
+      <span class="hm-label">{{ row.num }} — {{ row.title }}</span>
+      <div class="hm-cells">
+        {% for cell in row.cells %}
+        {% if cell %}<span class="hm-cell hm-{{ cell.kind }}" style="opacity:{{ cell.op }}" title="{{ cell.title }}"></span>
+        {% else %}<span class="hm-cell hm-empty"></span>{% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">Noch keine Reaktionen.</p>
+  {% endif %}
+
+  <h2>Kapitel-Bewertungen (Ø Skala 1–5)</h2>
+  <table>
+    <tr><th>Kap.</th><th>Frage</th><th>Ø</th><th>n</th></tr>
+    {% for s in scale_stats %}
+    <tr>
+      <td>{{ s.chapter_num }} — {{ s.chapter_title }}</td>
+      <td>{{ s.question }}</td>
+      <td class="rating-cell">
+        <span class="rating-bar"><span class="rating-fill {% if s.avg_val < 3 %}low{% endif %}" style="width:{{ (s.avg_val / 5 * 100) | round }}%"></span></span>
+        <span class="rating-num">{{ s.avg_val }}</span>
+      </td>
+      <td>{{ s.n }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">Noch keine Skalen-Bewertungen.</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Freitext-Antworten</h2>
+  {% for chnum, chgroup in text_answers | groupby('chapter_num') %}
+  <h3 class="ta-chapter">Kap. {{ chnum }} — {{ chgroup[0].chapter_title }}</h3>
+  {% for question, qgroup in chgroup | groupby('question') %}
+  <div class="ta-block">
+    <div class="ta-q">{{ question }}</div>
+    {% for t in qgroup %}
+    <div class="ta-a"><span class="ta-reader">{{ t.reader_name }}</span> {{ t.value }}</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted">Noch keine Freitext-Antworten.</p>
+  {% endfor %}
+  {% endif %}
+</main>
+{% endblock %}

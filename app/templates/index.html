@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }}{% endblock %}
+{% block content %}
+<main class="container home">
+  <header class="book-header">
+    <p class="book-label">Testleser-Exemplar</p>
+    <h1>{{ book.title }}</h1>
+    <p class="greeting">Hallo {{ reader.name }} 👋 Schön, dass du testliest!</p>
+    <div class="progress-summary" id="progress-summary" hidden>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <span class="progress-label" id="progress-label"></span>
+    </div>
+  </header>
+
+  <a class="continue-card" id="continue-card" hidden href="#">
+    <span class="continue-label">▶ Weiterlesen</span>
+    <span class="continue-title" id="continue-title"></span>
+  </a>
+
+  <div class="hint-card">
+    💡 <strong>So funktioniert's:</strong> Lies einfach drauflos. Fällt dir etwas auf —
+    tippe den Absatz an und hinterlasse einen Kommentar oder eine schnelle Reaktion.
+    Am Ende jedes Kapitels warten 4 kurze Fragen. Alles ist freiwillig, alles hilft. 💙
+  </div>
+
+  <ol class="chapter-list">
+    {% for ch in chapters %}
+    <li data-ch-id="{{ ch.id }}" data-slug="{{ ch.slug }}">
+      <a href="/r/{{ token }}/k/{{ ch.slug }}">
+        <span class="ch-num">{{ loop.index }}</span>
+        <span class="ch-body">
+          <span class="ch-title">{{ ch.title }}</span>
+          <span class="ch-sub">~{{ ch.minutes }} Min.{% if ch.my_comments %} · 💬 {{ ch.my_comments }}{% endif %}</span>
+        </span>
+        <span class="ch-state" data-state></span>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+</main>
+<script>
+  window.BR_TOKEN = {{ token | tojson }};
+  window.SERVER_PROGRESS = {{ server_progress | tojson }};
+</script>
+{% endblock %}
+{% block scripts %}<script src="/static/home.js"></script>{% endblock %}

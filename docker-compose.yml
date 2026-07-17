@@ -1,0 +1,15 @@
+services:
+  randnotiz:
+    build: .
+    container_name: randnotiz
+    restart: unless-stopped
+    ports:
+      # Nur an localhost binden — Zugriff ausschließlich über nginx (TLS). Kein direkter Klartext-Port nach außen.
+      - "127.0.0.1:8300:8000"
+    environment:
+      - RANDNOTIZ_ADMIN_KEY=${RANDNOTIZ_ADMIN_KEY:?RANDNOTIZ_ADMIN_KEY setzen (.env)}
+      - RANDNOTIZ_BOOKS=/srv/buecher
+    volumes:
+      - ./data:/srv/data
+      # Buch-Ablage (read-only): ein Ordner pro Buch — buecher/<slug>/ mit Kapiteln, Makefile, assets/
+      - ./buecher:/srv/buecher:ro

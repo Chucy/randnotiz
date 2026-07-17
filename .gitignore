@@ -1,0 +1,39 @@
+# --- Laufzeit-/Nutzerdaten (NIEMALS committen — enthält Klarnamen + Leser-Feedback!) ---
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# --- Secrets / lokale Konfiguration ---
+.env
+.env.local
+
+# --- Buch-Manuskripte (privat, nicht Teil des OSS-Codes) ---
+buecher/
+buch/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Deploy-Artefakte ---
+.deploy-backup-*/
+
+# --- Persönliche Infra-Originale (nur lokal; generische Vorlagen liegen daneben) ---
+deploy/nginx-buch.conf
+deploy/README-cutover.md
+docker-compose.standalone.yml
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store

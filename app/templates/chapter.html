@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ ch.title }} — {{ book.title }}{% endblock %}
+{% block content %}
+<div class="readbar"><div class="readbar-fill" id="readbar-fill"></div></div>
+<nav class="topnav">
+  <a class="back" href="/r/{{ token }}" title="Zur Kapitelübersicht">☰</a>
+  <span class="nav-title">Kapitel {{ pos }} von {{ total }}</span>
+  <span class="font-btns">
+    <button id="font-minus" title="Schrift kleiner">A−</button>
+    <button id="font-plus" title="Schrift größer">A+</button>
+  </span>
+</nav>
+
+<div class="onboarding" id="onboarding" hidden>
+  <span>👆 <strong>Tipp:</strong> Tippe auf einen Absatz, um ihn zu kommentieren oder zu bewerten.</span>
+  <button id="onboarding-ok">Alles klar</button>
+</div>
+
+<main class="container reader" id="reader"
+      data-token="{{ token }}" data-chapter-id="{{ ch.id }}"
+      data-slug="{{ ch.slug }}" data-title="{{ ch.title }}"
+      data-server-pos="{{ server_pos }}">
+  {% if show_update_note %}
+  <div class="update-note">📝 Dieses Kapitel wurde am {{ ch.updated_at[8:10] }}.{{ ch.updated_at[5:7] }}. überarbeitet —
+    deine älteren Kommentare können sich auf eine frühere Fassung beziehen.</div>
+  {% endif %}
+  {% for b in blocks %}
+  <div class="block" data-idx="{{ b.idx }}">
+    {{ b.html | safe }}
+    <div class="block-meta" data-meta="{{ b.idx }}"></div>
+  </div>
+  {% endfor %}
+
+  <section class="questions" id="questions">
+    <h2>Kurzes Feedback zum Kapitel</h2>
+    <p class="hint">Freiwillig, aber es hilft enorm — 4 kurze Fragen:</p>
+    <form id="qform">
+      {% for q in questions %}
+      <div class="q">
+        <label>{{ q.text }}</label>
+        {% if q.qtype == 'scale' %}
+        <div class="scale" data-qid="{{ q.id }}">
+          {% for v in [1,2,3,4,5] %}
+          <button type="button" class="scale-btn {% if my_answers.get(q.id) == v|string %}active{% endif %}" data-val="{{ v }}">{{ v }}</button>
+          {% endfor %}
+        </div>
+        {% else %}
+        <textarea data-qid="{{ q.id }}" rows="3" placeholder="Deine Antwort …">{{ my_answers.get(q.id, '') }}</textarea>
+        {% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="primary">Feedback speichern</button>
+    </form>
+  </section>
+
+  <nav class="chapternav">
+    {% if next_ch %}
+    <a class="cta-next" href="/r/{{ token }}/k/{{ next_ch.slug }}">
+      <span class="cta-label">Weiter lesen</span>
+      <span class="cta-title">{{ next_ch.title }} →</span>
+    </a>
+    {% else %}
+    <div class="cta-done">🎉 Das war das letzte Kapitel — du hast das Buch durch. Tausend Dank fürs Testlesen!</div>
+    {% endif %}
+    <div class="subnav">
+      {% if prev_ch %}<a href="/r/{{ token }}/k/{{ prev_ch.slug }}">← {{ prev_ch.title }}</a>{% endif %}
+      <a href="/r/{{ token }}">Kapitelübersicht</a>
+    </div>
+  </nav>
+</main>
+
+<!-- Kommentar-Sheet -->
+<div class="sheet-backdrop" id="backdrop" hidden></div>
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-quote" id="sheet-quote"></div>
+  <div class="reactions">
+    <button class="reaction" data-kind="herz">❤️ Stark</button>
+    <button class="reaction" data-kind="frage">❓ Unklar</button>
+    <button class="reaction" data-kind="gaehn">😴 Zäh</button>
+  </div>
+  <div id="sheet-comments"></div>
+  <textarea id="comment-text" rows="3" placeholder="Dein Kommentar zu dieser Stelle …"></textarea>
+  <div class="sheet-actions">
+    <button class="secondary" id="sheet-close">Schließen</button>
+    <button class="primary" id="comment-send">Kommentar senden</button>
+  </div>
+</div>
+
+<script>
+  window.MY_COMMENTS = {{ my_comments | tojson }};
+  window.MY_REACTIONS = {{ my_reactions | tojson }};
+</script>
+{% endblock %}
+{% block scripts %}<script src="/static/reader.js"></script>{% endblock %}
