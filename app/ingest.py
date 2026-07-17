@@ -79,11 +79,11 @@ def files_from_makefile(makefile: str) -> list[str]:
         content = f.read()
     m = re.search(r"^KAPITEL\s*=\s*((?:.*\\\n)*.*)$", content, re.MULTILINE)
     if not m:
-        sys.exit("Keine KAPITEL-Variable im Makefile gefunden")
+        sys.exit("No KAPITEL variable found in the Makefile")
     files = [os.path.join(base, tok) for tok in re.findall(r"(\S+\.md)", m.group(1))]
     missing = [f for f in files if not os.path.exists(f)]
     if missing:
-        sys.exit(f"Im Makefile referenziert, aber nicht gefunden: {missing}")
+        sys.exit(f"Referenced in the Makefile but not found: {missing}")
     return files
 
 
@@ -161,8 +161,8 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
     # that would otherwise silently create an empty second book)
     if not cur.execute("SELECT 1 FROM books WHERE slug=?", (slug,)).fetchone() and not allow_new:
         existing = [r["slug"] for r in cur.execute("SELECT slug FROM books ORDER BY slug")]
-        sys.exit(f"Buch-Slug '{slug}' existiert nicht. Vorhandene Bücher: {existing or 'keine'}. "
-                 f"Neues Buch anlegen: --new anhängen.")
+        sys.exit(f"Book slug '{slug}' does not exist. Existing books: {existing or 'none'}. "
+                 f"Create a new book: append --new.")
 
     cur.execute("INSERT INTO books(slug, title) VALUES(?, ?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title", (slug, title))
     book_id = cur.execute("SELECT id FROM books WHERE slug=?", (slug,)).fetchone()["id"]
@@ -197,18 +197,18 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
             cur.execute("INSERT INTO blocks(chapter_id, idx, html, text) VALUES(?,?,?,?)", (ch_id, idx, html, block))
             new_blocks.append((idx, block))
 
-        print(f"  K{num:02d} {ch_title} ({ch_slug}) — {idx + 1} Blöcke")
+        print(f"  K{num:02d} {ch_title} ({ch_slug}) — {idx + 1} blocks")
 
         # On changed content: adjust feedback + stamp chapter as revised
         if old_texts and [t for _, t in new_blocks] != [old_texts[i] for i in sorted(old_texts)]:
             cur.execute("UPDATE chapters SET updated_at=datetime('now') WHERE id=?", (ch_id,))
             s = remap_feedback(cur, ch_id, old_texts, new_blocks)
             if any(s.values()):
-                print(f"       ↳ geändert — Kommentare: {s['c_moved']} verschoben, {s['c_orphaned']} verwaist · "
-                      f"Reactions: {s['r_moved']} verschoben, {s['r_deleted']} entfernt · "
-                      f"Fortschritt: {s['p_adjusted']} angepasst")
+                print(f"       ↳ changed — comments: {s['c_moved']} moved, {s['c_orphaned']} orphaned · "
+                      f"reactions: {s['r_moved']} moved, {s['r_deleted']} removed · "
+                      f"progress: {s['p_adjusted']} adjusted")
             else:
-                print("       ↳ geändert (kein Feedback betroffen)")
+                print("       ↳ changed (no feedback affected)")
 
     # Remove chapters that are no longer in the source (incl. dependent data)
     keep = tuple(os.path.splitext(os.path.basename(p))[0] for p in files)
@@ -220,16 +220,16 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
         for table in ("comments", "reactions", "answers", "blocks", "reading_progress"):
             cur.execute(f"DELETE FROM {table} WHERE chapter_id=?", (row["id"],))
         cur.execute("DELETE FROM chapters WHERE id=?", (row["id"],))
-        print(f"  entfernt (nicht mehr in Quelle): {row['slug']}")
+        print(f"  removed (no longer in source): {row['slug']}")
 
     if dry_run:
         conn.rollback()
         conn.close()
-        print(f"DRY-RUN: nichts geschrieben — obiger Report zeigt, was ein echter Ingest von {len(files)} Kapiteln täte.")
+        print(f"DRY RUN: nothing written — the report above shows what a real ingest of {len(files)} chapters would do.")
         return
     conn.commit()
     conn.close()
-    print(f"Ingest fertig: {len(files)} Kapitel in Buch '{title}'.")
+    print(f"Ingest done: {len(files)} chapters in book '{title}'.")
 
 
 def delete_book(slug: str, yes: bool = False) -> None:
@@ -240,7 +240,7 @@ def delete_book(slug: str, yes: bool = False) -> None:
     b = cur.execute("SELECT * FROM books WHERE slug=?", (slug,)).fetchone()
     if not b:
         existing = [r["slug"] for r in cur.execute("SELECT slug FROM books ORDER BY slug")]
-        sys.exit(f"Buch '{slug}' nicht gefunden. Vorhandene Bücher: {existing or 'keine'}")
+        sys.exit(f"Book '{slug}' not found. Existing books: {existing or 'none'}")
     bid = b["id"]
     in_ch = "IN (SELECT id FROM chapters WHERE book_id=?)"
     counts = {
@@ -250,12 +250,12 @@ def delete_book(slug: str, yes: bool = False) -> None:
         "Reaktionen": cur.execute(f"SELECT COUNT(*) FROM reactions WHERE chapter_id {in_ch}", (bid,)).fetchone()[0],
         "Fragebogen-Antworten": cur.execute(f"SELECT COUNT(*) FROM answers WHERE chapter_id {in_ch}", (bid,)).fetchone()[0],
     }
-    print(f"Buch '{b['title']}' ({slug}) — würde löschen:")
+    print(f"Book '{b['title']}' ({slug}) — would delete:")
     for k, v in counts.items():
         print(f"  {k}: {v}")
     if not yes:
         conn.close()
-        print("Nur Report, nichts gelöscht. Wirklich löschen: --yes anhängen.")
+        print("Report only, nothing deleted. To actually delete: append --yes.")
         return
     for table in ("comments", "reactions", "answers", "reading_progress", "blocks"):
         cur.execute(f"DELETE FROM {table} WHERE chapter_id {in_ch}", (bid,))
@@ -266,37 +266,37 @@ def delete_book(slug: str, yes: bool = False) -> None:
     cur.execute("DELETE FROM books WHERE id=?", (bid,))
     conn.commit()
     conn.close()
-    print(f"Buch '{slug}' komplett gelöscht.")
+    print(f"Book '{slug}' completely deleted.")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     src = ap.add_mutually_exclusive_group(required=False)
-    src.add_argument("--makefile", help="Buch-Makefile mit KAPITEL-Variable (Reihenfolge = Buchreihenfolge)")
-    src.add_argument("--book-dir", help="Verzeichnis mit *.md (alphabetische Reihenfolge)")
-    ap.add_argument("--slug", help="Buch-Slug (taucht öffentlich in Asset-URLs auf — keine internen Codenamen)")
-    ap.add_argument("--title", help="Buchtitel")
-    ap.add_argument("--new", action="store_true", help="Neues Buch anlegen (Pflicht bei unbekanntem Slug — Tippfehler-Guard)")
-    ap.add_argument("--exclude", default="", help="Kommagetrennte Kapitel-Slugs, die nicht ins Testleser-Exemplar sollen")
-    ap.add_argument("--dry-run", action="store_true", help="Nur Diff-Report zeigen (Kommentar-Auswirkungen), nichts schreiben")
-    ap.add_argument("--delete-book", metavar="SLUG", help="Buch samt Feedback + Lesern löschen (ohne --yes nur Report)")
-    ap.add_argument("--yes", action="store_true", help="Löschen mit --delete-book wirklich ausführen")
+    src.add_argument("--makefile", help="Book Makefile with a KAPITEL variable (order = book order)")
+    src.add_argument("--book-dir", help="Directory with *.md files (alphabetical order)")
+    ap.add_argument("--slug", help="Book slug (appears publicly in asset URLs — no internal codenames)")
+    ap.add_argument("--title", help="Book title")
+    ap.add_argument("--new", action="store_true", help="Create a new book (required for an unknown slug — typo guard)")
+    ap.add_argument("--exclude", default="", help="Comma-separated chapter slugs to exclude from the beta-reader copy")
+    ap.add_argument("--dry-run", action="store_true", help="Only show the diff report (comment impact), write nothing")
+    ap.add_argument("--delete-book", metavar="SLUG", help="Delete a book incl. feedback + readers (report only without --yes)")
+    ap.add_argument("--yes", action="store_true", help="Actually perform the deletion with --delete-book")
     args = ap.parse_args()
     if args.delete_book:
         delete_book(args.delete_book, yes=args.yes)
         sys.exit(0)
     if not (args.makefile or args.book_dir):
-        ap.error("--makefile oder --book-dir erforderlich (außer bei --delete-book)")
+        ap.error("--makefile or --book-dir required (except with --delete-book)")
     if not args.slug or not args.title:
-        ap.error("--slug und --title erforderlich")
+        ap.error("--slug and --title required")
     if args.makefile:
         file_list = files_from_makefile(args.makefile)
     else:
         file_list = sorted(glob.glob(os.path.join(os.path.expanduser(args.book_dir), "*.md")))
         if not file_list:
-            sys.exit(f"Keine Kapitel-Dateien in {args.book_dir} gefunden")
+            sys.exit(f"No chapter files found in {args.book_dir}")
     excluded = {s.strip() for s in args.exclude.split(",") if s.strip()}
     if excluded:
         file_list = [f for f in file_list if os.path.splitext(os.path.basename(f))[0] not in excluded]
-        print(f"Ausgeschlossen: {', '.join(sorted(excluded))}")
+        print(f"Excluded: {', '.join(sorted(excluded))}")
     ingest(file_list, args.slug, args.title, dry_run=args.dry_run, allow_new=args.new)

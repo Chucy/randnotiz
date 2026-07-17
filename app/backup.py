@@ -33,11 +33,11 @@ def main() -> None:
     check = chk.execute("PRAGMA integrity_check").fetchone()[0]
     chk.close()  # checkpoints and cleans up the -wal/-shm of the tmp file
     if check != "ok":
-        print(f"FEHLER: integrity_check = {check!r} — Snapshot NICHT übernommen", file=sys.stderr)
+        print(f"ERROR: integrity_check = {check!r} — snapshot NOT applied", file=sys.stderr)
         sys.exit(1)
 
     os.replace(tmp, snap)  # atomic: srv01 never sees a half-written snapshot
-    print(f"Snapshot ok: {snap} ({os.path.getsize(snap)} Bytes)")
+    print(f"Snapshot ok: {snap} ({os.path.getsize(snap)} bytes)")
 
 
 if __name__ == "__main__":

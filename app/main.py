@@ -45,7 +45,7 @@ async def security_headers(request: Request, call_next):
 @app.exception_handler(Exception)
 async def unhandled_exception(request: Request, exc: Exception):
     """Last resort: unexpected errors land structured in the log instead of as a raw traceback."""
-    logger.exception("Unbehandelter Fehler bei %s %s", request.method, request.url.path)
+    logger.exception("Unhandled error at %s %s", request.method, request.url.path)
     return JSONResponse({"error": "interner Serverfehler"}, status_code=500)
 
 
@@ -65,7 +65,7 @@ def healthz():
         conn.execute("SELECT 1")
         conn.close()
     except Exception:
-        logger.exception("Healthcheck fehlgeschlagen")
+        logger.exception("Healthcheck failed")
         raise HTTPException(503, "database unavailable")
     return {"status": "ok"}
 
