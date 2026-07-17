@@ -1,8 +1,8 @@
-// randnotiz — Startseite: Gelesen-Status + "Weiterlesen"-Karte (aus localStorage)
+// randnotiz — home page: read status + "continue reading" card (from localStorage)
 (function () {
-  const ns = "br:" + window.BR_TOKEN + ":"; // Keys pro Token, siehe reader.js
+  const ns = "br:" + window.BR_TOKEN + ":"; // keys per token, see reader.js
 
-  // Server-Lesestand in localStorage seeden (Gerätewechsel/Cache-Clear) — lokaler Stand hat Vorrang
+  // Seed the server reading state into localStorage (device switch/cache clear) — local state takes precedence
   const sp = window.SERVER_PROGRESS || {};
   (sp.done || []).forEach((id) => {
     if (!localStorage.getItem(ns + "done:" + id)) localStorage.setItem(ns + "done:" + id, "1");
@@ -36,5 +36,5 @@
       document.getElementById("continue-title").textContent = last.title;
       card.hidden = false;
     }
-  } catch (e) { /* kaputter localStorage-Eintrag — ignorieren */ }
+  } catch (e) { /* corrupt localStorage entry — ignore */ }
 })();

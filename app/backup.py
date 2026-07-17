@@ -1,12 +1,12 @@
-"""Konsistenter SQLite-Snapshot + Integritätscheck für den nächtlichen Backup-Cron.
+"""Consistent SQLite snapshot + integrity check for the nightly backup cron.
 
-Aufruf (im Container, per VM-Cron VOR dem srv01-Pull):
+Invocation (in the container, via VM cron BEFORE the srv01 pull):
     python -m app.backup
 
-Schreibt randnotiz-snapshot.db neben die Live-DB (landet damit automatisch im
-srv01-rsync mit). Die Online-Backup-API liefert im Gegensatz zu einem rohen Kopieren
-der live beschriebenen .db-Datei einen garantiert konsistenten Stand.
-Exit-Code != 0, wenn der Snapshot fehlschlägt oder der integrity_check nicht "ok" ist.
+Writes randnotiz-snapshot.db next to the live DB (so it's automatically included in
+the srv01 rsync). Unlike a raw copy of the live .db file being written to, the online
+backup API guarantees a consistent state.
+Exit code != 0 if the snapshot fails or the integrity_check is not "ok".
 """
 import os
 import sqlite3
@@ -25,18 +25,18 @@ def main() -> None:
     src = sqlite3.connect(db)
     src.execute("PRAGMA busy_timeout = 10000")
     dst = sqlite3.connect(tmp)
-    src.backup(dst)  # Online-Backup-API: konsistent auch bei parallelen Writes
+    src.backup(dst)  # online backup API: consistent even with concurrent writes
     dst.close()
     src.close()
 
     chk = sqlite3.connect(tmp)
     check = chk.execute("PRAGMA integrity_check").fetchone()[0]
-    chk.close()  # checkpointet und räumt -wal/-shm des Tmp-Files ab
+    chk.close()  # checkpoints and cleans up the -wal/-shm of the tmp file
     if check != "ok":
         print(f"FEHLER: integrity_check = {check!r} — Snapshot NICHT übernommen", file=sys.stderr)
         sys.exit(1)
 
-    os.replace(tmp, snap)  # atomar: srv01 sieht nie einen halben Snapshot
+    os.replace(tmp, snap)  # atomic: srv01 never sees a half-written snapshot
     print(f"Snapshot ok: {snap} ({os.path.getsize(snap)} Bytes)")
 
 

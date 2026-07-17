@@ -1,11 +1,11 @@
-// randnotiz — Leser-Interaktion: Kommentare, Reactions, Fortschritt, Komfort
+// randnotiz — reader interaction: comments, reactions, progress, convenience
 (function () {
   const reader = document.getElementById("reader");
   if (!reader) return;
   const token = reader.dataset.token;
   const chapterId = parseInt(reader.dataset.chapterId, 10);
-  // Lesestand-Keys pro Token namespacen — sonst überschreiben sich zwei Links
-  // (zweites Buch oder geteiltes Gerät) gegenseitig. br:font/br:hint bleiben Geräte-global.
+  // Namespace reading-progress keys per token — otherwise two links
+  // (second book or shared device) would overwrite each other. br:font/br:hint stay device-global.
   const ns = "br:" + token + ":";
 
   const sheet = document.getElementById("sheet");
@@ -29,7 +29,7 @@
     }, 2500);
   }
 
-  // ---------- Lokaler Zustand (vom Server initialisiert) ----------
+  // ---------- Local state (initialized from the server) ----------
   const comments = {}; // idx -> [{id, text}]
   (window.MY_COMMENTS || []).forEach((c) => {
     (comments[c.block_idx] = comments[c.block_idx] || []).push({ id: c.id, text: c.text });
@@ -53,7 +53,7 @@
   Object.keys(comments).forEach(renderMeta);
   Object.keys(reactions).forEach(renderMeta);
 
-  // ---------- Kommentar-Sheet ----------
+  // ---------- Comment sheet ----------
   function openSheet(idx, blockEl) {
     currentIdx = idx;
     const text = blockEl.textContent.trim().replace(/\s+/g, " ");
@@ -111,7 +111,7 @@
 
   reader.querySelectorAll(".block").forEach((blockEl) => {
     blockEl.addEventListener("click", (e) => {
-      if (e.target.closest("a")) return; // Links normal funktionieren lassen
+      if (e.target.closest("a")) return; // let links work normally
       openSheet(parseInt(blockEl.dataset.idx, 10), blockEl);
     });
   });
@@ -119,7 +119,7 @@
   backdrop.addEventListener("click", closeSheet);
   document.getElementById("sheet-close").addEventListener("click", closeSheet);
 
-  // ---------- Eigene Kommentare: senden, bearbeiten, löschen ----------
+  // ---------- Own comments: send, edit, delete ----------
   const sendBtn = document.getElementById("comment-send");
   let editingId = null;
 
@@ -129,14 +129,14 @@
     commentText.value = "";
   }
 
-  // Fehlgeschlagene Requests dürfen NIE stumm bleiben (Mobilfunk-Loch!):
-  // Fehler-Toast zeigen, Sheet + getippter Text bleiben stehen.
+  // Failed requests must NEVER fail silently (mobile dead zone!):
+  // show an error toast, keep the sheet + typed text as-is.
   const FAIL_MSG = "Senden fehlgeschlagen — bitte nochmal versuchen 📶";
 
   sendBtn.addEventListener("click", async () => {
     const text = commentText.value.trim();
     if (!text || currentIdx === null || sendBtn.disabled) return;
-    sendBtn.disabled = true; // Doppel-Tipp-Schutz: sonst doppelte Kommentare bei langsamer Verbindung
+    sendBtn.disabled = true; // double-tap protection: otherwise duplicate comments on slow connections
     try {
       if (editingId !== null) {
         await api(`comment/${editingId}/update`, { text });
@@ -177,7 +177,7 @@
         await api(`comment/${id}/delete`, {});
       } catch (err) {
         toast(FAIL_MSG);
-        return; // Kommentar bleibt sichtbar — nichts lokal wegwerfen, was der Server noch hat
+        return; // comment stays visible — don't discard locally what the server still has
       }
       comments[currentIdx] = list.filter((x) => x.id !== id);
       if (editingId === id) resetEditing();
@@ -196,7 +196,7 @@
         r = await api("reaction", { chapter_id: chapterId, block_idx: currentIdx, kind });
       } catch (err) {
         toast(FAIL_MSG);
-        return; // Button-Zustand unverändert lassen — spiegelt weiter den Server-Stand
+        return; // leave button state unchanged — still reflects the server state
       }
       reactions[currentIdx] = reactions[currentIdx] || new Set();
       r.active ? reactions[currentIdx].add(kind) : reactions[currentIdx].delete(kind);
@@ -205,7 +205,7 @@
     });
   });
 
-  // ---------- Fragebogen ----------
+  // ---------- Questionnaire ----------
   const qform = document.getElementById("qform");
   if (qform) {
     qform.querySelectorAll(".scale").forEach((scale) => {
@@ -233,14 +233,14 @@
         await api("answers", { chapter_id: chapterId, answers });
         toast("Feedback gespeichert — danke! 💙");
       } catch (err) {
-        toast(FAIL_MSG); // Eingaben bleiben im Formular stehen
+        toast(FAIL_MSG); // input stays in the form
       } finally {
         if (qsubmit) qsubmit.disabled = false;
       }
     });
   }
 
-  // ---------- Schriftgröße ----------
+  // ---------- Font size ----------
   const FONT_SIZES = ["0.95rem", "1.02rem", "1.1rem", "1.2rem", "1.32rem", "1.45rem"];
   function fontIdx() {
     const cur = localStorage.getItem("br:font") || "1.1rem";
@@ -255,7 +255,7 @@
   document.getElementById("font-minus").addEventListener("click", () => setFont(fontIdx() - 1));
   document.getElementById("font-plus").addEventListener("click", () => setFont(fontIdx() + 1));
 
-  // ---------- Onboarding-Hinweis (nur beim ersten Mal) ----------
+  // ---------- Onboarding hint (only the first time) ----------
   const onboarding = document.getElementById("onboarding");
   if (onboarding && !localStorage.getItem("br:hint:v1")) {
     onboarding.hidden = false;
@@ -265,24 +265,24 @@
     });
   }
 
-  // ---------- Lesefortschritt: Balken, Position merken, "Weiterlesen" ----------
+  // ---------- Reading progress: bar, remember position, "continue reading" ----------
   const readbar = document.getElementById("readbar-fill");
   const blocks = [...reader.querySelectorAll(".block")];
 
   localStorage.setItem(ns + "last", JSON.stringify({ slug: reader.dataset.slug, title: reader.dataset.title }));
 
   function topBlockIdx() {
-    const y = 70; // unterhalb der Topnav
+    const y = 70; // below the topnav
     for (const b of blocks) {
       if (b.getBoundingClientRect().bottom > y) return parseInt(b.dataset.idx, 10);
     }
     return blocks.length ? parseInt(blocks[blocks.length - 1].dataset.idx, 10) : 0;
   }
 
-  // Server-Sync: Fortschritt persistieren (Admin-Dashboard sieht, wer wie weit ist)
+  // Server sync: persist progress (admin dashboard sees who's gotten how far)
   let maxIdx = 0, done = false, lastSentIdx = -1, doneSent = false, lastPingAt = 0;
   function sendProgress(useBeacon) {
-    if (maxIdx <= lastSentIdx && (doneSent || !done)) return; // nichts Neues
+    if (maxIdx <= lastSentIdx && (doneSent || !done)) return; // nothing new
     const payload = { chapter_id: chapterId, max_block_idx: maxIdx, done: done };
     lastSentIdx = maxIdx;
     doneSent = done;
@@ -293,7 +293,7 @@
     }
   }
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") sendProgress(true); // Tab-Wechsel/Schließen: letzten Stand flushen
+    if (document.visibilityState === "hidden") sendProgress(true); // tab switch/close: flush latest state
   });
 
   let saveTimer = null;
@@ -305,14 +305,14 @@
       const idx = topBlockIdx();
       localStorage.setItem(ns + "pos:" + chapterId, String(idx));
       maxIdx = Math.max(maxIdx, idx);
-      if (Date.now() - lastPingAt > 15000) { // Server-Ping max. alle 15s
+      if (Date.now() - lastPingAt > 15000) { // server ping max. every 15s
         lastPingAt = Date.now();
         sendProgress(false);
       }
     }, 400);
   }, { passive: true });
 
-  // Position wiederherstellen — lokal zuerst, sonst Server-Stand (Gerätewechsel)
+  // Restore position — local first, otherwise server state (device switch)
   const saved = parseInt(localStorage.getItem(ns + "pos:" + chapterId) || reader.dataset.serverPos || "0", 10);
   if (saved > 1) {
     const target = reader.querySelector(`.block[data-idx="${saved}"]`);
@@ -323,7 +323,7 @@
     }
   }
 
-  // Kapitel als gelesen markieren, wenn der Fragebogen sichtbar wird
+  // Mark chapter as read once the questionnaire becomes visible
   const questions = document.getElementById("questions");
   if (questions && "IntersectionObserver" in window) {
     new IntersectionObserver((entries, obs) => {

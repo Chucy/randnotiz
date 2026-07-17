@@ -1,12 +1,101 @@
 # Randnotiz
 
-Self-hosted platform for collecting structured beta-reader feedback on a manuscript — a lightweight, privacy-friendly alternative to SaaS tools like BetaBooks or StoryOrigin.
+[🇩🇪 Deutsch](#deutsch) · [🇬🇧 English](#english)
+
+<a id="deutsch"></a>
+
+Selbstgehostete Plattform, um strukturiertes **Testleser-Feedback** zu einem Manuskript zu sammeln — eine schlanke, datensparsame Alternative zu SaaS-Tools wie BetaReader.io oder BetaBooks.
+
+Testleser öffnen einen persönlichen Magic-Link (kein Konto, kein Passwort), lesen das Buch Kapitel für Kapitel und hinterlassen **Inline-Kommentare pro Absatz**, schnelle **Reaktionen** (❤️ / ❓ / 😴) und Antworten auf **Kapitel-Fragebögen**. Als Autor:in bekommst du ein Admin-Dashboard, das von wenigen Notizen bis zu hunderten Kommentaren skaliert, plus einen JSON-Export zur weiteren Auswertung.
+
+> **Status:** im privaten Beta-Einsatz. Funktional fertig für seinen Zweck; bewusst klein gehalten.
+
+<!-- TODO: Screenshots hier einfügen — Leseransicht (Kommentar-Overlay pro Absatz) + Admin-Dashboard (Kapitel-Kacheln + Reaktions-Heatmap). Größter Wirkung-pro-Aufwand-Hebel. -->
+
+## Funktionen
+
+- **Magic-Link-Leser** — ein Link = eine Leser-Identität, keine Registrierung.
+- **Inline-Absatz-Kommentare** — Absatz antippen, Notiz hinterlassen; Leser können eigene bearbeiten/löschen.
+- **Reaktionen** pro Absatz (❤️ gefällt · ❓ verwirrt · 😴 gelangweilt) — als Heatmap sichtbar gemacht.
+- **Kapitel-Fragebögen** — Skala- und Freitextfragen, im Admin editierbar.
+- **Admin-Dashboard** — serverseitige Filter (Kapitel/Status/Leser), KPI-Leiste, Kapitel-Kacheln, Reaktions-Heatmap, verdichtete Kommentar-Cards, Lesefortschritt. Bleibt auch bei 500+ Kommentaren übersichtlich.
+- **Fortschritts-Tracking** — wie weit jeder Leser gekommen ist, pro Kapitel (datensparsam: keine Verweildauer-Erfassung).
+- **Multi-Book** — eine Instanz kann mehrere Manuskripte bedienen; jeder Leser-Link gehört zu genau einem Buch.
+- **JSON-Export** für die Offline- / KI-gestützte Auswertung.
+- **Ingest** von Markdown-Kapiteln → SQLite; ein Re-Ingest bildet vorhandene Kommentare per Text-Matching auf geänderte Absätze ab.
+
+## Stack
+
+FastAPI · SQLite · Jinja2 · Vanilla JS/CSS. Ein Docker-Container. **Kein Frontend-Framework, kein Build-Step** — bewusst so gewählt, damit das Projekt leicht zu betreiben und zu warten bleibt.
+
+## Schnellstart
+
+```bash
+git clone <this-repo> randnotiz
+cd randnotiz
+cp .env.example .env        # dann RANDNOTIZ_ADMIN_KEY setzen
+docker compose up -d --build
+```
+
+Der Container lauscht standardmäßig auf `127.0.0.1:8300` und erwartet einen TLS-terminierenden Reverse-Proxy (z. B. nginx) davor. Health-Check: `GET /healthz`. Siehe [`deploy/`](deploy/) für eine Beispiel-nginx-Site + Let's-Encrypt-Setup.
+
+### Konfiguration (Umgebungsvariablen)
+
+| Variable | Zweck | Default |
+|---|---|---|
+| `RANDNOTIZ_ADMIN_KEY` | Admin-Login-Key (langen Zufallswert setzen). **Pflicht.** | — |
+| `RANDNOTIZ_BOOKS` | Verzeichnis mit einem Ordner pro Buch (`<slug>/` mit Kapiteln, `Makefile`, `assets/`). | — |
+| `RANDNOTIZ_DB` | Pfad zur SQLite-Datenbank. | `data/randnotiz.db` |
+
+### Ein Buch hinzufügen
+
+```bash
+# Kapitelreihenfolge stammt aus dem Makefile des Buchs (Quelle der Wahrheit):
+python -m app.ingest --makefile /path/to/book/Makefile \
+    --slug my-book --title "My Book" --new
+
+# Re-Ingest nach Änderungen — erst die Feedback-Auswirkung ansehen, dann echt ausführen:
+python -m app.ingest --makefile /path/to/book/Makefile --slug my-book --dry-run
+python -m app.ingest --makefile /path/to/book/Makefile --slug my-book
+```
+
+`--dry-run` zeigt, wie vorhandene Kommentare neu zugeordnet würden, bevor etwas geschrieben wird. `python -m app.ingest -h` listet alle Optionen (`--book-dir`, `--exclude`, `--delete-book`, …).
+
+### Admin & Leser
+
+- Admin: `/admin` aufrufen, mit `RANDNOTIZ_ADMIN_KEY` anmelden. Dort Leser-Links anlegen und Feedback ansehen.
+- Leser: den Magic-Link (`/r/<token>`) teilen. Jeder Link ist eine Identität — wer sich ein Gerät teilt, braucht je einen eigenen Link.
+- Export: `/admin` → Export, oder `GET /api/export?book=<slug>`.
+
+## Backup
+
+`app/backup.py` schreibt einen konsistenten Snapshot (`data/randnotiz-snapshot.db`) über die Online-Backup-API von SQLite plus einen `integrity_check`. Per Cron einplanen und **immer aus dem Snapshot wiederherstellen**, nie aus der Live-`.db` (die ein offenes WAL haben kann). SQLite auf einer lokalen Platte halten — nicht auf einem NFS/CIFS-Mount (File-Locking).
+
+```bash
+python -m app.backup
+```
+
+## Architektur
+
+- **Schema & Migrationen** liegen in `app/db.py`: ein Basis-Schema plus additive `ALTER TABLE ADD COLUMN` / `CREATE INDEX IF NOT EXISTS`-Migrationen, die bei jedem Start laufen — kein separates Migrations-Tool.
+- **Sicherheit:** Admin-Auth per HttpOnly/Secure/SameSite-Cookie und `secrets.compare_digest`; Security-Header (CSP, `X-Frame-Options`, nosniff) auf jeder Antwort; Path-Traversal-geschütztes Ausliefern von Assets; Non-Root-Container (UID 10001); Text-Längenlimit gegen Storage-Missbrauch.
+- **Zuverlässigkeit:** WAL-Modus + Busy-Timeout; ein Catch-all-Exception-Handler, der loggt und einen generischen 500 zurückgibt; `/healthz` als Basis für den Docker-`HEALTHCHECK`.
+
+## Lizenz
+
+[MIT](LICENSE)
+
+---
+
+<a id="english"></a>
+
+[🇩🇪 Deutsch](#deutsch) · 🇬🇧 English
+
+Self-hosted platform for collecting structured **beta-reader feedback** on a manuscript — a lightweight, privacy-friendly alternative to SaaS tools like BetaReader.io or BetaBooks.
 
 Readers open a personal magic link (no account, no password), read the book chapter by chapter, and leave **inline comments per paragraph**, quick **reactions** (❤️ / ❓ / 😴), and answers to **per-chapter questionnaires**. As the author you get an admin dashboard that scales from a handful of notes to hundreds of comments, plus a JSON export for further analysis.
 
 > **Status:** used in a live private beta. Functionally complete for its purpose; deliberately small.
-
-<!-- TODO: add screenshots here — reader view (paragraph comment overlay) + admin dashboard (chapter tiles + reaction heatmap). Biggest impression-for-effort win. -->
 
 ## Features
 
@@ -22,7 +111,7 @@ Readers open a personal magic link (no account, no password), read the book chap
 
 ## Stack
 
-FastAPI · SQLite · Jinja2 · vanilla JS/CSS. One Docker container. **No frontend framework, no build step** — this is a deliberate choice to keep the project easy to run and maintain.
+FastAPI · SQLite · Jinja2 · vanilla JS/CSS. One Docker container. **No frontend framework, no build step** — a deliberate choice to keep the project easy to run and maintain.
 
 ## Quick start
 

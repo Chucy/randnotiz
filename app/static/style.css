@@ -1,4 +1,4 @@
-/* randnotiz — mobil-first, ruhige Lese-Typografie */
+/* randnotiz — mobile-first, calm reading typography */
 :root {
   --bg: #faf8f4;
   --fg: #2b2b2b;
@@ -30,13 +30,13 @@ body {
   line-height: 1.65;
 }
 .container { max-width: var(--content-width); margin: 0 auto; padding: 1rem 1.2rem 4rem; }
-/* Desktop: Platz besser nutzen — breitere Spalte, Schrift skaliert mit (User-Einstellung bleibt Basis) */
+/* Desktop: use space better — wider column, font scales along (user setting stays the base) */
 @media (min-width: 1000px) {
   :root { --content-width: 56rem; }
   body { font-size: calc(var(--reader-font, 1.1rem) * 1.18); }
   .container { padding: 1.5rem 2rem 5rem; }
 }
-/* Große Displays: Root-Schrift anheben → Spalte + Text + UI wachsen proportional */
+/* Large displays: increase root font → column + text + UI grow proportionally */
 @media (min-width: 1500px) {
   html { font-size: 18px; }
   :root { --content-width: 60rem; }
@@ -50,7 +50,7 @@ body {
   html { font-size: 23px; }
 }
 
-/* Lesefortschritts-Balken (ganz oben, fix) */
+/* Reading progress bar (top, fixed) */
 .readbar { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 30; background: transparent; }
 .readbar-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.15s linear; }
 
@@ -73,7 +73,7 @@ body {
 }
 .font-btns button:hover { background: var(--accent-soft); }
 
-/* Onboarding-Hinweis */
+/* Onboarding hint */
 .onboarding {
   display: flex; align-items: center; gap: 0.8rem; justify-content: space-between;
   max-width: var(--content-width); margin: 0.8rem auto 0; padding: 0.7rem 1rem;
@@ -85,7 +85,7 @@ body {
   padding: 0.45rem 0.9rem; cursor: pointer; font-size: 0.85rem; white-space: nowrap;
 }
 
-/* Startseite */
+/* Home page */
 .book-label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.75rem; color: var(--muted); font-family: system-ui, sans-serif; margin: 0.5rem 0 0; }
 .book-header h1 { font-size: 1.7rem; margin: 0.2rem 0 0.3rem; }
 .greeting { color: var(--muted); font-family: system-ui, sans-serif; font-size: 0.95rem; }
@@ -129,7 +129,7 @@ body {
 .ch-sub { font-family: system-ui, sans-serif; font-size: 0.78rem; color: var(--muted); }
 .ch-state { color: var(--accent); font-family: system-ui, sans-serif; font-weight: 700; }
 
-/* Lese-Ansicht */
+/* Reading view */
 .block { padding: 0.15rem 0.5rem; margin: 0 -0.5rem; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
 .block:hover { background: var(--accent-soft); }
 .block.selected { background: var(--accent-soft); outline: 2px solid var(--accent); }
@@ -137,12 +137,12 @@ body {
 .block h1 { font-size: 1.6rem; }
 .block pre { overflow-x: auto; font-size: 0.85rem; background: var(--accent-soft); padding: 0.7rem; border-radius: 6px; }
 .block img { max-width: 100%; }
-/* display:block + overflow-x: breite Tabellen scrollen im Block statt die Seite zu sprengen (mobile) */
+/* display:block + overflow-x: wide tables scroll inside the block instead of breaking the page (mobile) */
 .block table { border-collapse: collapse; font-size: 0.9rem; display: block; overflow-x: auto; max-width: 100%; }
 .block td, .block th { border: 1px solid var(--border); padding: 0.3rem 0.5rem; }
 .block-meta { font-family: system-ui, sans-serif; font-size: 0.8rem; color: var(--accent); min-height: 0; }
 
-/* Kapitel-Navigation */
+/* Chapter navigation */
 .chapternav { margin-top: 2rem; font-family: system-ui, sans-serif; }
 .cta-next {
   display: flex; flex-direction: column; gap: 0.15rem;
@@ -168,7 +168,7 @@ body {
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* Fragebogen */
+/* Questionnaire */
 .questions { margin-top: 3rem; border-top: 2px solid var(--border); padding-top: 1rem; font-family: system-ui, sans-serif; }
 .questions h2 { font-size: 1.2rem; }
 .questions .hint { color: var(--muted); font-size: 0.9rem; }
@@ -196,7 +196,7 @@ button.secondary {
 }
 .save-status { margin-left: 0.8rem; color: green; font-family: system-ui, sans-serif; font-size: 0.9rem; }
 
-/* Kommentar-Sheet */
+/* Comment sheet */
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 20; }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
@@ -239,18 +239,18 @@ button.secondary {
 .admin td.actions button.danger { color: #c0392b; border-color: #c0392b; }
 .admin td.actions button.danger:hover { background: rgba(192,57,43,0.12); }
 
-/* Überarbeitet-Hinweis im Kapitel (nur für Leser, die die alte Fassung kannten) */
+/* Revised-content notice in the chapter (only for readers who knew the old version) */
 .update-note {
   background: var(--accent-soft); border: 1px solid var(--border); border-radius: 10px;
   padding: 0.6rem 0.9rem; margin: 0.8rem 0 1.2rem; font-size: 0.88rem; color: var(--muted);
 }
 
-/* Admin: Kommentar-Filterleiste (serverseitig, GET) */
+/* Admin: comment filter bar (server-side, GET) */
 .admin .filter-bar { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: end; margin: 0.6rem 0 1rem; }
 .admin .filter-bar label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
 .admin .muted { color: var(--muted); font-weight: normal; font-size: 0.85rem; }
 
-/* Admin: KPI-Leiste (Aggregat, skaliert mit Buchstruktur statt Feedbackmenge) */
+/* Admin: KPI bar (aggregate, scales with book structure rather than feedback volume) */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.6rem; margin: 1rem 0 0.5rem; }
 .kpi { display: flex; flex-direction: column; gap: 0.15rem; border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; background: var(--sheet-bg); }
 .kpi-val { font-size: 1.5rem; font-weight: 600; line-height: 1.1; }
@@ -258,7 +258,7 @@ button.secondary {
 .kpi.kpi-warn { border-color: var(--accent); }
 .kpi.kpi-warn .kpi-val { color: var(--accent); }
 
-/* Admin: Kapitel-Kacheln (Kommentar-Übersicht, Einstieg in den Drilldown) */
+/* Admin: chapter tiles (comment overview, entry point into the drilldown) */
 .chapter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.6rem; margin: 0.4rem 0 1rem; }
 .chapter-tile { display: flex; flex-direction: column; gap: 0.1rem; border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; text-decoration: none; color: var(--fg); background: var(--sheet-bg); }
 .chapter-tile:hover { background: var(--accent-soft); }
@@ -267,7 +267,7 @@ button.secondary {
 .chapter-tile .ct-title { font-weight: 600; }
 .chapter-tile .ct-count { font-size: 0.82rem; color: var(--muted); }
 
-/* Admin: Reaktions-Heatmap */
+/* Admin: reaction heatmap */
 .heatmap { display: flex; flex-direction: column; gap: 0.35rem; }
 .hm-row { display: flex; align-items: center; gap: 0.6rem; }
 .hm-label { flex: 0 0 11rem; font-size: 0.8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -282,7 +282,7 @@ button.secondary {
   .hm-label { flex: none; }
 }
 
-/* Admin: verdichtete Kommentar-Cards (Stufe 3) — gleiche Textstelle gebündelt */
+/* Admin: condensed comment cards (level 3) — grouped by the same text passage */
 .comment-card { border: 1px solid var(--border); border-radius: 10px; margin: 0.6rem 0; overflow: hidden; }
 .cc-quote { background: var(--accent-soft); padding: 0.5rem 0.8rem; font-style: italic; font-size: 0.85rem; color: var(--muted); }
 .cc-quote .badge { font-style: normal; font-weight: 600; color: var(--accent); background: var(--sheet-bg); border: 1px solid var(--accent); border-radius: 999px; padding: 0.05rem 0.5rem; font-size: 0.72rem; margin-left: 0.3rem; }
@@ -299,14 +299,14 @@ button.secondary {
   .cc-text { flex: 1 1 100%; order: 3; }
 }
 
-/* Admin: gruppierte Freitext-Antworten (Kapitel → Frage) */
+/* Admin: grouped free-text answers (chapter → question) */
 .ta-chapter { font-size: 1rem; margin: 1.2rem 0 0.3rem; }
 .ta-block { margin: 0.5rem 0 0.8rem; }
 .ta-q { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
 .ta-a { padding: 0.3rem 0.6rem; border-left: 2px solid var(--border); margin: 0.2rem 0; font-size: 0.9rem; }
 .ta-reader { font-weight: 600; color: var(--accent); margin-right: 0.3rem; }
 
-/* Admin: Testleser-Cards (Stufe 4) mit wiederverwendetem Fortschrittsbalken */
+/* Admin: beta reader cards (level 4) with reused progress bar */
 .reader-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.7rem; margin: 0.6rem 0 1rem; }
 .reader-card { display: flex; flex-direction: column; gap: 0.4rem; border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem 0.9rem; background: var(--sheet-bg); }
 .rc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
@@ -324,14 +324,14 @@ button.secondary {
 .rc-actions button.danger { color: #c0392b; border-color: #c0392b; }
 .rc-actions button.danger:hover { background: rgba(192,57,43,0.12); }
 
-/* Admin: Kapitel-Bewertungen als Mini-Balken */
+/* Admin: chapter ratings as mini bars */
 .rating-cell { display: flex; align-items: center; gap: 0.5rem; }
 .rating-bar { flex: 0 0 5rem; height: 7px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
 .rating-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .rating-fill.low { background: #c0392b; }
 .rating-num { font-variant-numeric: tabular-nums; font-size: 0.85rem; }
 
-/* Admin: erledigte Kommentare + verwaiste Anker + Fragen-Editor */
+/* Admin: resolved comments + orphaned anchors + questions editor */
 .admin tr.resolved-row td { opacity: 0.45; }
 .admin .orphan-badge { color: #c0392b; font-size: 0.75rem; font-style: normal; }
 .admin input[type=number], .admin select {
@@ -339,7 +339,7 @@ button.secondary {
   background: var(--sheet-bg); color: var(--fg); font-size: 0.9rem;
 }
 
-/* Eigene Kommentare im Sheet: bearbeiten/löschen */
+/* Own comments in the sheet: edit/delete */
 .my-comment { display: flex; align-items: baseline; gap: 0.4rem; }
 .my-comment-text { flex: 1; }
 .my-comment-actions button {
@@ -348,7 +348,7 @@ button.secondary {
 }
 .my-comment-actions button:hover { opacity: 1; }
 
-/* Admin: Buch-Tabs (nur sichtbar bei >1 Buch) */
+/* Admin: book tabs (only visible when >1 book) */
 .book-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.8rem 0 1rem; }
 .book-tab {
   border: 1px solid var(--border); border-radius: 8px; padding: 0.35rem 0.8rem;
@@ -356,5 +356,5 @@ button.secondary {
 }
 .book-tab.active { background: var(--accent-soft); border-color: var(--accent, #4a7); font-weight: 600; }
 
-/* Buttons während laufendem Request sichtbar deaktiviert */
+/* Buttons visibly disabled during an in-flight request */
 button:disabled { opacity: 0.5; cursor: wait; }

@@ -1,4 +1,4 @@
-"""Randnotiz — self-hosted Beta-Reader-Plattform (BetaBooks-Stil)."""
+"""Randnotiz — self-hosted beta-reader platform (BetaBooks-style)."""
 import logging
 import mimetypes
 import os
@@ -16,7 +16,7 @@ from .db import get_db, init_db
 
 ADMIN_KEY = os.environ.get("RANDNOTIZ_ADMIN_KEY", "")
 REACTION_KINDS = {"herz", "frage", "gaehn"}
-MAX_TEXT = 5000  # Obergrenze für frei eingebbare Texte (Storage-DoS-Schutz)
+MAX_TEXT = 5000  # upper bound for free-text input (storage-DoS protection)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,13 +44,13 @@ async def security_headers(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def unhandled_exception(request: Request, exc: Exception):
-    """Letzte Instanz: unerwartete Fehler landen strukturiert im Log statt als roher Traceback."""
+    """Last resort: unexpected errors land structured in the log instead of as a raw traceback."""
     logger.exception("Unbehandelter Fehler bei %s %s", request.method, request.url.path)
     return JSONResponse({"error": "interner Serverfehler"}, status_code=500)
 
 
 app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="static")
-# Buch-Ablage: ein Verzeichnis pro Buch — <BOOKS_DIR>/<slug>/ mit Kapiteln, Makefile, assets/
+# Book storage: one directory per book — <BOOKS_DIR>/<slug>/ with chapters, Makefile, assets/
 BOOKS_DIR = os.path.expanduser(os.environ.get("RANDNOTIZ_BOOKS", ""))
 templates = Jinja2Templates(directory=os.path.join(BASE, "templates"))
 
@@ -59,7 +59,7 @@ init_db()
 
 @app.get("/healthz")
 def healthz():
-    """Liveness für Docker-HEALTHCHECK: prüft, dass der Prozess läuft UND die DB antwortet."""
+    """Liveness for Docker HEALTHCHECK: checks that the process is running AND the DB responds."""
     try:
         conn = get_db()
         conn.execute("SELECT 1")
@@ -80,7 +80,7 @@ def reader_or_404(conn, token: str):
 
 
 def touch_reader(conn, reader_id: int) -> None:
-    """Merkt sich, dass der Magic-Link gerade benutzt wurde (kein Commit — macht der Aufrufer)."""
+    """Records that the magic link was just used (no commit — that's the caller's job)."""
     conn.execute(
         "INSERT INTO reader_activity(reader_id) VALUES(?) "
         "ON CONFLICT(reader_id) DO UPDATE SET last_seen_at=datetime('now')",
@@ -89,7 +89,7 @@ def touch_reader(conn, reader_id: int) -> None:
 
 
 def fmt_activity(mins: int | None) -> str:
-    """Relative Aktivitätsanzeige fürs Dashboard (Minuten seit last_seen_at)."""
+    """Relative activity display for the dashboard (minutes since last_seen_at)."""
     if mins is None:
         return "— nie geöffnet"
     if mins < 5:
@@ -102,7 +102,7 @@ def fmt_activity(mins: int | None) -> str:
 
 
 def admin_ok(request: Request) -> bool:
-    """Admin-Auth per HttpOnly-Cookie (nicht mehr per URL-Query — kein Leak in Logs/History)."""
+    """Admin auth via HttpOnly cookie (no longer via URL query — no leak into logs/history)."""
     key = request.cookies.get("br_admin", "")
     return bool(ADMIN_KEY) and secrets.compare_digest(key, ADMIN_KEY)
 
@@ -127,7 +127,7 @@ LOGIN_HTML = (
 
 
 def book_of_reader(conn, reader):
-    """Das Buch, zu dem dieser Magic-Link gehört (1 Link = 1 Buch)."""
+    """The book this magic link belongs to (1 link = 1 book)."""
     b = conn.execute("SELECT * FROM books WHERE id=?", (reader["book_id"],)).fetchone()
     if not b:
         raise HTTPException(404, "Diesem Link ist kein Buch zugeordnet")
@@ -135,9 +135,9 @@ def book_of_reader(conn, reader):
 
 
 def check_chapter_in_book(conn, chapter_id: int, reader) -> None:
-    """Schreib-APIs: Kapitel muss zum Buch des Lesers gehören (kein Cross-Book-Feedback).
+    """Write APIs: chapter must belong to the reader's book (no cross-book feedback).
 
-    Vor touch_reader aufrufen — nur Reads, hält bei 404 keinen Write-Lock offen.
+    Call before touch_reader — reads only, so a 404 doesn't leave a write lock open.
     """
     if not conn.execute("SELECT 1 FROM chapters WHERE id=? AND book_id=?", (chapter_id, reader["book_id"])).fetchone():
         raise HTTPException(404, "Kapitel nicht gefunden")
@@ -162,11 +162,11 @@ def landing():
 
 @app.get("/assets/{book_slug}/{rest:path}")
 def book_asset(book_slug: str, rest: str):
-    """Buch-Grafiken aus <BOOKS_DIR>/<slug>/assets/ ausliefern.
+    """Serve book images from <BOOKS_DIR>/<slug>/assets/.
 
-    Bewusst NUR das assets/-Unterverzeichnis — die Manuskript-Markdowns im selben
-    Buchordner dürfen niemals öffentlich abrufbar sein. Dreifacher Schutz:
-    Slug-Whitelist gegen die DB, dazu realpath-Zaun um Slug UND Restpfad.
+    Deliberately ONLY the assets/ subdirectory — the manuscript markdown files in the
+    same book folder must never be publicly reachable. Triple protection:
+    slug whitelist against the DB, plus a realpath fence around both slug AND rest path.
     """
     if not BOOKS_DIR:
         raise HTTPException(404, "Keine Buch-Ablage konfiguriert")
@@ -179,14 +179,14 @@ def book_asset(book_slug: str, rest: str):
     base = os.path.realpath(os.path.join(root, book_slug, "assets"))
     full = os.path.realpath(os.path.join(base, rest))
     if not base.startswith(root + os.sep) or not full.startswith(base + os.sep) or not os.path.isfile(full):
-        raise HTTPException(404, "Asset nicht gefunden")  # deckt auch "Buch ohne assets/-Ordner" sauber ab
+        raise HTTPException(404, "Asset nicht gefunden")  # also cleanly covers "book without an assets/ folder"
     media_type, _ = mimetypes.guess_type(full)
     resp = FileResponse(full, media_type=media_type)
-    resp.headers["Cache-Control"] = "public, max-age=86400"  # mobile-first: Bilder nicht pro Kapitelaufruf neu holen
+    resp.headers["Cache-Control"] = "public, max-age=86400"  # mobile-first: don't re-fetch images on every chapter load
     return resp
 
 
-# ---------- Leser-Ansichten ----------
+# ---------- Reader Views ----------
 
 @app.get("/r/{token}", response_class=HTMLResponse)
 def index(request: Request, token: str):
@@ -202,8 +202,8 @@ def index(request: Request, token: str):
         (reader["id"], book["id"]),
     ).fetchall()]
     for c in chapters:
-        c["minutes"] = max(1, round(c["chars"] / 6 / 220))  # ~6 Zeichen/Wort, 220 Wörter/Min
-    # Server-Lesestand → localStorage-Seed (Gerätewechsel: Gelesen-Status + Weiterlesen-Karte)
+        c["minutes"] = max(1, round(c["chars"] / 6 / 220))  # ~6 chars/word, 220 words/min
+    # Server-side reading state → localStorage seed (device switch: read status + continue-reading card)
     done_ids = [row["chapter_id"] for row in conn.execute(
         "SELECT chapter_id FROM reading_progress WHERE reader_id=? AND done_at IS NOT NULL", (reader["id"],))]
     last = conn.execute(
@@ -237,10 +237,10 @@ def chapter(request: Request, token: str, ch_slug: str):
         "SELECT question_id, value FROM answers WHERE chapter_id=? AND reader_id=?", (ch["id"], reader["id"]))}
     total = conn.execute("SELECT COUNT(*) AS n FROM chapters WHERE book_id=?", (book["id"],)).fetchone()["n"]
     pos = conn.execute("SELECT COUNT(*) AS n FROM chapters WHERE book_id=? AND num<=?", (book["id"], ch["num"])).fetchone()["n"]
-    # Server-Lesestand als Fallback fürs Scroll-Restore (Gerätewechsel)
+    # Server-side reading state as fallback for scroll restore (device switch)
     prog = conn.execute("SELECT max_block_idx FROM reading_progress WHERE reader_id=? AND chapter_id=?", (reader["id"], ch["id"])).fetchone()
     server_pos = prog["max_block_idx"] if prog else 0
-    # Überarbeitet-Hinweis nur für Leser, die das Kapitel schon vor der Änderung kannten
+    # "Revised" note only for readers who already knew the chapter before the change
     first_seen = conn.execute("SELECT first_seen_at FROM reader_activity WHERE reader_id=?", (reader["id"],)).fetchone()
     show_update_note = bool(ch["updated_at"] and first_seen and first_seen["first_seen_at"] < ch["updated_at"])
     conn.close()
@@ -254,7 +254,7 @@ def chapter(request: Request, token: str, ch_slug: str):
     })
 
 
-# ---------- Leser-API ----------
+# ---------- Reader API ----------
 
 class CommentIn(BaseModel):
     chapter_id: int
@@ -312,10 +312,10 @@ def update_comment(token: str, comment_id: int, body: CommentUpdateIn):
     touch_reader(conn, reader["id"])
     cur = conn.execute(
         "UPDATE comments SET text=?, edited_at=datetime('now') WHERE id=? AND reader_id=?",
-        (body.text.strip(), comment_id, reader["id"]),  # reader_id-Check: nur eigene Kommentare
+        (body.text.strip(), comment_id, reader["id"]),  # reader_id check: only own comments
     )
     ok = cur.rowcount > 0
-    conn.commit()  # auch bei 404: touch_reader committen und Write-Lock freigeben
+    conn.commit()  # even on 404: commit touch_reader and release the write lock
     conn.close()
     if not ok:
         raise HTTPException(404, "Kommentar nicht gefunden")
@@ -329,7 +329,7 @@ def delete_comment(token: str, comment_id: int):
     touch_reader(conn, reader["id"])
     cur = conn.execute("DELETE FROM comments WHERE id=? AND reader_id=?", (comment_id, reader["id"]))
     ok = cur.rowcount > 0
-    conn.commit()  # auch bei 404: touch_reader committen und Write-Lock freigeben
+    conn.commit()  # even on 404: commit touch_reader and release the write lock
     conn.close()
     if not ok:
         raise HTTPException(404, "Kommentar nicht gefunden")
@@ -432,7 +432,7 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
         status = "open"
     conn = get_db()
     books = conn.execute("SELECT * FROM books ORDER BY title").fetchall()
-    # Aktives Buch: ?book=<slug>, sonst das erste — alle Sektionen sind darauf gefiltert
+    # Active book: ?book=<slug>, otherwise the first one — all sections are filtered by it
     active = next((b for b in books if b["slug"] == book), books[0] if books else None)
     bid = active["id"] if active else -1
     readers = [dict(r) for r in conn.execute(
@@ -447,8 +447,8 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
         r["activity"] = fmt_activity(r["mins_ago"])
     total_chapters = conn.execute(
         "SELECT COUNT(*) AS n FROM chapters WHERE book_id=?", (bid,)).fetchone()["n"]
-    # Kommentare serverseitig filtern (Kapitel/Status/Leser) statt alles rendern + clientseitig verstecken —
-    # bei 500+ Kommentaren bleibt so nur die tatsächlich gebrauchte Teilmenge im DOM.
+    # Filter comments server-side (chapter/status/reader) instead of rendering everything and hiding client-side —
+    # with 500+ comments, this keeps only the actually needed subset in the DOM.
     cwhere = ["c.book_id=?"]
     cargs: list = [bid]
     if chapter:
@@ -463,20 +463,20 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
         "SELECT cm.*, r.name AS reader_name, c.title AS chapter_title, c.num AS chapter_num "
         "FROM comments cm JOIN readers r ON r.id=cm.reader_id JOIN chapters c ON c.id=cm.chapter_id "
         f"WHERE {' AND '.join(cwhere)} ORDER BY c.num, cm.block_idx, cm.created_at", cargs).fetchall()
-    # Buchweite Zähler (vom Filter unabhängig) — damit der Header ehrlich bleibt, auch wenn gefiltert ist.
+    # Book-wide counters (independent of the filter) — keeps the header honest even when filtered.
     crow = conn.execute(
         "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN cm.resolved=0 THEN 1 ELSE 0 END), 0) AS n_open "
         "FROM comments cm JOIN chapters c ON c.id=cm.chapter_id WHERE c.book_id=?", (bid,)).fetchone()
     chapter_list = conn.execute(
         "SELECT num, title FROM chapters WHERE book_id=? ORDER BY num", (bid,)).fetchall()
-    # Aggregat-Übersicht (Stufe 2): Kennzahlen pro Kapitel — Größe skaliert mit der Buchstruktur,
-    # nicht mit der Feedbackmenge. LEFT JOIN, damit auch kommentarlose Kapitel als Kachel erscheinen.
+    # Aggregate overview (tier 2): metrics per chapter — size scales with the book structure,
+    # not with the amount of feedback. LEFT JOIN so chapters without comments still show up as a tile.
     chapter_stats = conn.execute(
         "SELECT c.num, c.title, COUNT(cm.id) AS n_total, "
         "COALESCE(SUM(CASE WHEN cm.resolved=0 THEN 1 ELSE 0 END), 0) AS n_open "
         "FROM chapters c LEFT JOIN comments cm ON cm.chapter_id=c.id "
         "WHERE c.book_id=? GROUP BY c.id ORDER BY c.num", (bid,)).fetchall()
-    # KPI-Leiste: Gesamt-Ø der Skalenbewertungen + schwächstes Kapitel
+    # KPI bar: overall average of scale ratings + weakest chapter
     overall_avg = conn.execute(
         "SELECT ROUND(AVG(CAST(a.value AS REAL)), 2) AS avg FROM answers a "
         "JOIN questions q ON q.id=a.question_id JOIN chapters c ON c.id=a.chapter_id "
@@ -486,8 +486,8 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
         "JOIN questions q ON q.id=a.question_id JOIN chapters c ON c.id=a.chapter_id "
         "WHERE q.qtype='scale' AND c.book_id=? GROUP BY a.chapter_id ORDER BY avg ASC LIMIT 1", (bid,)).fetchone()
     readers_done = sum(1 for r in readers if total_chapters and r["n_chapters_done"] == total_chapters)
-    # Reaktions-Heatmap: pro Kapitel eine Zelle je Absatz-Block, eingefärbt nach dominanter Reaktion,
-    # Deckkraft nach Anzahl. Blockzahl kommt aus blocks (Buchstruktur), damit Cluster positionsecht sind.
+    # Reaction heatmap: one cell per paragraph block per chapter, colored by the dominant reaction,
+    # opacity by count. Block count comes from blocks (book structure) so clusters stay position-accurate.
     hmap_rows = conn.execute(
         "SELECT c.num AS chapter_num, c.title AS chapter_title, re.block_idx, re.kind, COUNT(*) AS n "
         "FROM reactions re JOIN chapters c ON c.id=re.chapter_id WHERE c.book_id=? "
@@ -508,7 +508,7 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
         "SELECT q.*, (SELECT COUNT(*) FROM answers a WHERE a.question_id=q.id) AS n_answers "
         "FROM questions q WHERE q.book_id=? ORDER BY q.pos", (bid,)).fetchall()
     conn.close()
-    # Heatmap-Zeilen bauen: je Kapitel mit Reaktionen eine Zelle pro Block (0..max), dominante Reaktion + Deckkraft.
+    # Build heatmap rows: for each chapter with reactions, one cell per block (0..max), dominant reaction + opacity.
     kind_emoji = {"herz": "❤️", "frage": "❓", "gaehn": "😴"}
     agg: dict = defaultdict(lambda: defaultdict(dict))
     titles: dict = {}
@@ -531,8 +531,8 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
                 "title": f"Absatz {b}: " + ", ".join(f"{c}× {kind_emoji[k]}" for k, c in kinds.items()),
             })
         heatmap.append({"num": num, "title": titles[num], "cells": cells})
-    # Site ist https-only (nginx erzwingt Redirect + HSTS) — Magic-Links immer als https zeigen,
-    # auch wenn request.base_url hinter dem Proxy als http ankommt.
+    # Site is https-only (nginx enforces redirect + HSTS) — always show magic links as https,
+    # even if request.base_url arrives as http behind the proxy.
     base_url = str(request.base_url).rstrip("/")
     if base_url.startswith("http://"):
         base_url = "https://" + base_url[len("http://"):]
@@ -547,13 +547,13 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
 
 
 def admin_redirect(book_slug: str, anchor: str = "", **params) -> RedirectResponse:
-    """Nach Admin-Aktionen zurück auf den richtigen Buch-Tab — optionale Filter (chapter/status/reader)
-    als Query-Params durchreichen, damit man nach einem POST nicht aus der gefilterten Ansicht springt."""
+    """After admin actions, go back to the correct book tab — pass optional filters (chapter/status/reader)
+    through as query params so a POST doesn't bounce you out of the filtered view."""
     q = []
     if book_slug:
         q.append(f"book={quote(book_slug)}")
     for k, v in params.items():
-        if v:  # 0 / "" / None weglassen — dann greift der Route-Default
+        if v:  # skip 0 / "" / None — then the route default kicks in
             q.append(f"{k}={quote(str(v))}")
     url = "/admin" + ("?" + "&".join(q) if q else "")
     if anchor:
@@ -675,7 +675,7 @@ def delete_reader(request: Request, reader_id: int, book: str = ""):
 
 @app.get("/api/export")
 def export(request: Request, book: str = ""):
-    """JSON-Export — komplett, oder mit ?book=<slug> auf ein Buch gefiltert."""
+    """JSON export — complete, or filtered to one book with ?book=<slug>."""
     require_admin(request)
     conn = get_db()
     out = {}

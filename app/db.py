@@ -1,4 +1,4 @@
-"""SQLite-Schema und Verbindung für Randnotiz."""
+"""SQLite schema and connection for Randnotiz."""
 import os
 import sqlite3
 
@@ -85,9 +85,9 @@ CREATE TABLE IF NOT EXISTS reader_activity (
     first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
--- Indizes für die gefilterten Admin-Queries (Kapitel/Leser). Idempotent, laufen bei
--- jedem executescript() mit — wie idx_blocks_chapter. Bei Beta-Mengen (~500+ Zeilen)
--- noch nicht performancekritisch, aber zukunftssicher für mehrere Bücher/Revisionsrunden.
+-- Indexes for the filtered admin queries (chapter/reader). Idempotent, run on every
+-- executescript() — like idx_blocks_chapter. Not yet performance-critical at beta
+-- volumes (~500+ rows), but future-proof for multiple books/revision rounds.
 CREATE INDEX IF NOT EXISTS idx_comments_chapter ON comments(chapter_id, block_idx);
 CREATE INDEX IF NOT EXISTS idx_comments_reader ON comments(reader_id);
 CREATE INDEX IF NOT EXISTS idx_reactions_chapter ON reactions(chapter_id, block_idx);
@@ -100,13 +100,13 @@ def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA busy_timeout = 5000")  # bei parallelem Writer kurz warten statt sofort "database is locked"
-    conn.execute("PRAGMA journal_mode = WAL")   # robustere gleichzeitige Reads/Writes (persistent, Aufruf ist idempotent)
+    conn.execute("PRAGMA busy_timeout = 5000")  # wait briefly on a concurrent writer instead of failing immediately with "database is locked"
+    conn.execute("PRAGMA journal_mode = WAL")   # more robust concurrent reads/writes (persistent, call is idempotent)
     return conn
 
 
-# Spalten, die nach dem ersten Release dazukamen — CREATE TABLE IF NOT EXISTS
-# greift bei Bestands-DBs nicht, daher hier per ALTER TABLE nachziehen.
+# Columns added after the first release — CREATE TABLE IF NOT EXISTS
+# doesn't apply to existing DBs, so they're added here via ALTER TABLE.
 MIGRATIONS = [
     ("chapters", "updated_at", "TEXT"),
     ("comments", "resolved", "INTEGER NOT NULL DEFAULT 0"),
@@ -123,7 +123,7 @@ def init_db() -> None:
         cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
         if col not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
-    # Multi-Book-Backfill: Bestandsleser ans einzige Buch hängen — nur eindeutig, wenn genau 1 Buch existiert
+    # Multi-book backfill: attach existing readers to the single book — only unambiguous when exactly 1 book exists
     if conn.execute("SELECT COUNT(*) FROM books").fetchone()[0] == 1:
         conn.execute("UPDATE readers SET book_id=(SELECT id FROM books) WHERE book_id IS NULL")
     conn.commit()

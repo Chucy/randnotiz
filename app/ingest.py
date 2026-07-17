@@ -1,17 +1,17 @@
-"""Ingest: Markdown-Kapitel → SQLite.
+"""Ingest: Markdown chapters → SQLite.
 
-Aufruf (Kapitelreihenfolge aus dem Buch-Makefile, Quelle der Wahrheit):
+Invocation (chapter order from the book Makefile, source of truth):
     python -m app.ingest --makefile /path/to/book/Makefile \
         --slug my-book --title "My Book"
 
-Alternativ ohne Makefile (alphabetisch nach Dateiname):
+Alternatively without a Makefile (alphabetical by filename):
     python -m app.ingest --book-dir <dir> --slug ... --title ...
 
-Re-Ingest ist idempotent: Kapitel werden per Slug geupsertet (IDs bleiben stabil,
-Kommentare überleben), Blöcke werden neu geschrieben. Bei geänderten Blöcken werden
-Kommentare/Reactions/Fortschritt per Text-Matching auf die neuen Block-Indizes
-remapped (nicht zuordenbare Kommentare → verwaist markiert) und das Kapitel als
-überarbeitet gestempelt. `--dry-run` zeigt den Report, ohne zu schreiben.
+Re-ingest is idempotent: chapters are upserted by slug (IDs stay stable,
+comments survive), blocks are rewritten. When blocks change, comments/reactions/
+progress are remapped to the new block indices via text matching (comments that
+can't be matched are marked orphaned), and the chapter is stamped as
+revised. `--dry-run` shows the report without writing anything.
 """
 import argparse
 import difflib
@@ -26,7 +26,7 @@ from .db import get_db, init_db
 
 MD = markdown.Markdown(extensions=["tables", "fenced_code", "sane_lists"])
 
-# Default-Fragen pro Kapitel (Sachbuch) — nur beim ersten Ingest gesetzt.
+# Default questions per chapter (non-fiction) — only set on the first ingest.
 DEFAULT_QUESTIONS = [
     ("Wie verständlich war das Kapitel? (1 = unverständlich, 5 = glasklar)", "scale"),
     ("Wie nützlich war das Kapitel für dich? (1 = nutzlos, 5 = sehr nützlich)", "scale"),
@@ -36,17 +36,17 @@ DEFAULT_QUESTIONS = [
 
 
 def clean_markdown(md_text: str, book_slug: str) -> str:
-    """Pandoc-Spezifika entfernen/anpassen, die python-markdown nicht kennt."""
-    # Heading-Attribute strippen: "# Vorwort {.unnumbered}" / "{-}" / "{#id}"
+    """Remove/adjust Pandoc-specific syntax that python-markdown doesn't know."""
+    # Strip heading attributes: "# Vorwort {.unnumbered}" / "{-}" / "{#id}"
     md_text = re.sub(r"^(#{1,6} .*?)\s*\{[^}]*\}\s*$", r"\1", md_text, flags=re.MULTILINE)
-    # Bildpfade auf den Buch-Namespace umschreiben: ](assets/... → ](/assets/<slug>/...
-    # (die App served pro Buch aus <BOOKS_DIR>/<slug>/assets/ — sonst kollidieren gleiche Dateinamen zweier Bücher)
+    # Rewrite image paths into the book namespace: ](assets/... → ](/assets/<slug>/...
+    # (the app serves per book from <BOOKS_DIR>/<slug>/assets/ — otherwise identical filenames from two books would collide)
     md_text = re.sub(r"\]\(assets/", f"](/assets/{book_slug}/", md_text)
     return md_text
 
 
 def split_blocks(md_text: str) -> list[str]:
-    """Markdown in Blöcke teilen (Leerzeilen-getrennt), Code-Fences zusammenhalten."""
+    """Split markdown into blocks (blank-line separated), keeping code fences intact."""
     blocks: list[str] = []
     current: list[str] = []
     in_fence = False
@@ -72,7 +72,7 @@ def chapter_title(md_text: str, fallback: str) -> str:
 
 
 def files_from_makefile(makefile: str) -> list[str]:
-    """KAPITEL-Variable aus dem Buch-Makefile parsen → Dateiliste in Buchreihenfolge."""
+    """Parse the KAPITEL variable from the book Makefile → file list in book order."""
     makefile = os.path.expanduser(makefile)
     base = os.path.dirname(makefile)
     with open(makefile, encoding="utf-8") as f:
@@ -88,28 +88,28 @@ def files_from_makefile(makefile: str) -> list[str]:
 
 
 def remap_block(old_text: str, old_idx: int, new_blocks: list[tuple[int, str]]) -> int | None:
-    """Besten neuen Block für einen alten finden: exakter Text zuerst, sonst fuzzy (difflib).
+    """Find the best new block for an old one: exact text first, otherwise fuzzy (difflib).
 
-    None = kein hinreichend ähnlicher Block mehr vorhanden (Absatz gelöscht/stark umgeschrieben).
+    None = no sufficiently similar block remains (paragraph deleted/heavily rewritten).
     """
     exact = [i for i, t in new_blocks if t == old_text]
     if exact:
-        return min(exact, key=lambda i: abs(i - old_idx))  # bei Duplikaten: nächstliegender
+        return min(exact, key=lambda i: abs(i - old_idx))  # on duplicates: pick the closest one
     best_idx, best_ratio = None, 0.0
     for i, t in new_blocks:
         r = difflib.SequenceMatcher(None, old_text, t).ratio()
         if r > best_ratio:
             best_idx, best_ratio = i, r
-    # 0.75: leichte Überarbeitungen liegen ~0.85+, zufällig ähnliche kurze Absätze ~0.6 —
-    # im Zweifel lieber verwaisen (sichtbar) als falsch zuordnen (still falsch).
+    # 0.75: minor revisions land around ~0.85+, coincidentally similar short paragraphs ~0.6 —
+    # when in doubt, prefer orphaning (visible) over a wrong match (silently wrong).
     return best_idx if best_ratio >= 0.75 else None
 
 
 def remap_feedback(cur, ch_id: int, old_texts: dict[int, str], new_blocks: list[tuple[int, str]]) -> dict:
-    """Kommentare/Reactions/Fortschritt nach Block-Neunummerierung nachziehen.
+    """Adjust comments/reactions/progress after block renumbering.
 
-    Kommentare ohne Ziel werden als verwaist markiert (Text+Quote bleiben erhalten),
-    Reactions ohne Ziel gelöscht (bloße Ein-Tap-Marker ohne eigenen Inhalt).
+    Comments without a target are marked orphaned (text+quote are preserved),
+    reactions without a target are deleted (mere one-tap markers with no content of their own).
     """
     mapping: dict[int, int | None] = {}
 
@@ -134,7 +134,7 @@ def remap_feedback(cur, ch_id: int, old_texts: dict[int, str], new_blocks: list[
             cur.execute("DELETE FROM reactions WHERE id=?", (r["id"],))
             stats["r_deleted"] += 1
         elif t != r["block_idx"]:
-            # OR IGNORE: falls der Leser am Zielblock dieselbe Reaktion schon hat (UNIQUE), Duplikat löschen
+            # OR IGNORE: if the reader already has the same reaction on the target block (UNIQUE), delete the duplicate
             cur.execute("UPDATE OR IGNORE reactions SET block_idx=? WHERE id=?", (t, r["id"]))
             if cur.rowcount:
                 stats["r_moved"] += 1
@@ -145,7 +145,7 @@ def remap_feedback(cur, ch_id: int, old_texts: dict[int, str], new_blocks: list[
     for p in cur.execute("SELECT id, max_block_idx FROM reading_progress WHERE chapter_id=?", (ch_id,)).fetchall():
         t = target(p["max_block_idx"])
         if t is None:
-            t = min(p["max_block_idx"], max_new)  # grob: Position halten, aber ins neue Kapitel einklemmen
+            t = min(p["max_block_idx"], max_new)  # rough: keep the position, but clamp into the new chapter
         if t != p["max_block_idx"]:
             cur.execute("UPDATE reading_progress SET max_block_idx=? WHERE id=?", (t, p["id"]))
             stats["p_adjusted"] += 1
@@ -157,8 +157,8 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
     conn = get_db()
     cur = conn.cursor()
 
-    # Guard: unbekannter Slug legt nur mit --new ein Buch an (fängt Tippfehler ab,
-    # die sonst still ein leeres Zweitbuch erzeugen würden)
+    # Guard: an unknown slug only creates a book with --new (catches typos
+    # that would otherwise silently create an empty second book)
     if not cur.execute("SELECT 1 FROM books WHERE slug=?", (slug,)).fetchone() and not allow_new:
         existing = [r["slug"] for r in cur.execute("SELECT slug FROM books ORDER BY slug")]
         sys.exit(f"Buch-Slug '{slug}' existiert nicht. Vorhandene Bücher: {existing or 'keine'}. "
@@ -167,7 +167,7 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
     cur.execute("INSERT INTO books(slug, title) VALUES(?, ?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title", (slug, title))
     book_id = cur.execute("SELECT id FROM books WHERE slug=?", (slug,)).fetchone()["id"]
 
-    # Default-Fragen nur setzen, wenn noch keine existieren
+    # Only set default questions if none exist yet
     if not cur.execute("SELECT 1 FROM questions WHERE book_id=?", (book_id,)).fetchone():
         for pos, (qtext, qtype) in enumerate(DEFAULT_QUESTIONS):
             cur.execute("INSERT INTO questions(book_id, pos, text, qtype) VALUES(?,?,?,?)", (book_id, pos, qtext, qtype))
@@ -185,7 +185,7 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
         )
         ch_id = cur.execute("SELECT id FROM chapters WHERE book_id=? AND slug=?", (book_id, ch_slug)).fetchone()["id"]
 
-        # Alte Blöcke sichern, bevor sie neu nummeriert werden — Anker für Kommentar-Remapping
+        # Save old blocks before they're renumbered — anchor for comment remapping
         old_texts = {row["idx"]: row["text"] for row in cur.execute(
             "SELECT idx, text FROM blocks WHERE chapter_id=? ORDER BY idx", (ch_id,)).fetchall()}
 
@@ -199,7 +199,7 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
 
         print(f"  K{num:02d} {ch_title} ({ch_slug}) — {idx + 1} Blöcke")
 
-        # Bei geändertem Inhalt: Feedback nachziehen + Kapitel als überarbeitet stempeln
+        # On changed content: adjust feedback + stamp chapter as revised
         if old_texts and [t for _, t in new_blocks] != [old_texts[i] for i in sorted(old_texts)]:
             cur.execute("UPDATE chapters SET updated_at=datetime('now') WHERE id=?", (ch_id,))
             s = remap_feedback(cur, ch_id, old_texts, new_blocks)
@@ -210,7 +210,7 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
             else:
                 print("       ↳ geändert (kein Feedback betroffen)")
 
-    # Kapitel entfernen, die nicht mehr in der Quelle sind (inkl. abhängiger Daten)
+    # Remove chapters that are no longer in the source (incl. dependent data)
     keep = tuple(os.path.splitext(os.path.basename(p))[0] for p in files)
     stale = cur.execute(
         f"SELECT id, slug FROM chapters WHERE book_id=? AND slug NOT IN ({','.join('?' * len(keep))})",
@@ -233,7 +233,7 @@ def ingest(files: list[str], slug: str, title: str, dry_run: bool = False, allow
 
 
 def delete_book(slug: str, yes: bool = False) -> None:
-    """Buch samt allem Feedback entfernen. Ohne yes nur Report (Dry-Run-Default)."""
+    """Remove a book along with all feedback. Without yes, only a report (dry-run default)."""
     init_db()
     conn = get_db()
     cur = conn.cursor()
