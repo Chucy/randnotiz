@@ -13,7 +13,11 @@
   const sheetQuote = document.getElementById("sheet-quote");
   const sheetComments = document.getElementById("sheet-comments");
   const commentText = document.getElementById("comment-text");
+  const bookmarkToggleBtn = document.getElementById("bookmark-toggle");
+  const continueBtn = document.getElementById("continue-btn");
   let currentIdx = null;
+  // Manual "continue reading" bookmark — block idx if it sits in THIS chapter, else null.
+  let bookmarkIdx = reader.dataset.bookmarkIdx !== "" ? parseInt(reader.dataset.bookmarkIdx, 10) : null;
 
   // ---------- Toast ----------
   const toastEl = document.getElementById("toast");
@@ -68,6 +72,7 @@
     document.querySelectorAll(".reaction").forEach((btn) => {
       btn.classList.toggle("active", !!(reactions[idx] && reactions[idx].has(btn.dataset.kind)));
     });
+    updateBookmarkBtn();
     commentText.value = "";
     sheet.hidden = false;
     backdrop.hidden = false;
@@ -256,11 +261,12 @@
   document.getElementById("font-plus").addEventListener("click", () => setFont(fontIdx() + 1));
 
   // ---------- Onboarding hint (only the first time) ----------
+  // v2: bumped so readers who dismissed the pre-bookmark hint see the updated one once.
   const onboarding = document.getElementById("onboarding");
-  if (onboarding && !localStorage.getItem("br:hint:v1")) {
+  if (onboarding && !localStorage.getItem("br:hint:v2")) {
     onboarding.hidden = false;
     document.getElementById("onboarding-ok").addEventListener("click", () => {
-      localStorage.setItem("br:hint:v1", "1");
+      localStorage.setItem("br:hint:v2", "1");
       onboarding.hidden = true;
     });
   }
@@ -312,14 +318,63 @@
     }, 400);
   }, { passive: true });
 
-  // Restore position — local first, otherwise server state (device switch)
-  const saved = parseInt(localStorage.getItem(ns + "pos:" + chapterId) || reader.dataset.serverPos || "0", 10);
-  if (saved > 1) {
-    const target = reader.querySelector(`.block[data-idx="${saved}"]`);
-    if (target) {
-      target.scrollIntoView();
-      window.scrollBy(0, -70);
-      toast("Du warst hier stehengeblieben 📖");
+  // ---------- Manual bookmark ("Hier weiterlesen") ----------
+  function bookmarkBlock() {
+    return bookmarkIdx === null ? null : reader.querySelector(`.block[data-idx="${bookmarkIdx}"]`);
+  }
+  function jumpToBookmark() {
+    const target = bookmarkBlock();
+    if (target) { target.scrollIntoView(); window.scrollBy(0, -70); }
+  }
+  function renderBookmark() {
+    document.querySelectorAll(".block.bookmarked").forEach((b) => b.classList.remove("bookmarked"));
+    const target = bookmarkBlock();
+    if (target) target.classList.add("bookmarked");
+    continueBtn.hidden = target === null; // only offer the jump when the mark is in this chapter
+  }
+  function updateBookmarkBtn() {
+    const isCurrent = bookmarkIdx !== null && bookmarkIdx === currentIdx;
+    bookmarkToggleBtn.textContent = isCurrent ? "🔖 Lesezeichen entfernen" : "🔖 Als Lesezeichen merken";
+    bookmarkToggleBtn.classList.toggle("active", isCurrent);
+  }
+  continueBtn.addEventListener("click", jumpToBookmark);
+  bookmarkToggleBtn.addEventListener("click", async () => {
+    if (currentIdx === null) return;
+    const wasCurrent = bookmarkIdx === currentIdx;
+    try {
+      if (wasCurrent) {
+        await api("bookmark/clear", {});
+        bookmarkIdx = null;
+      } else {
+        // One bookmark per book: setting it here clears any previous one server-side.
+        await api("bookmark", { chapter_id: chapterId, block_idx: currentIdx });
+        bookmarkIdx = currentIdx;
+      }
+    } catch (err) {
+      toast(FAIL_MSG);
+      return;
+    }
+    renderBookmark();
+    closeSheet();
+    toast(wasCurrent ? "Lesezeichen entfernt" : "Hier machst du weiter 🔖");
+  });
+
+  // Restore on load — a manual bookmark takes precedence over the auto scroll-restore
+  // (the auto one "kam beim Hoch-/Runterscrollen nicht mit" — that was the reader complaint).
+  renderBookmark();
+  if (bookmarkIdx !== null) {
+    // Arriving via the "Hier weiterlesen" card (landing / other chapter) → jump straight there.
+    if (location.hash === "#weiterlesen") jumpToBookmark();
+  } else {
+    // No bookmark → old behavior: restore last scroll position as a fallback (local, else server).
+    const saved = parseInt(localStorage.getItem(ns + "pos:" + chapterId) || reader.dataset.serverPos || "0", 10);
+    if (saved > 1) {
+      const target = reader.querySelector(`.block[data-idx="${saved}"]`);
+      if (target) {
+        target.scrollIntoView();
+        window.scrollBy(0, -70);
+        toast("Du warst hier stehengeblieben 📖");
+      }
     }
   }
 

@@ -210,10 +210,17 @@ def index(request: Request, token: str):
         "SELECT c.slug, c.title FROM reading_progress p JOIN chapters c ON c.id=p.chapter_id "
         "WHERE p.reader_id=? ORDER BY p.updated_at DESC LIMIT 1", (reader["id"],)).fetchone()
     server_progress = {"done": done_ids, "last": dict(last) if last else None}
+    # Manual bookmark → cross-chapter "continue reading" card (takes precedence over last-read)
+    bookmark = None
+    if reader["bookmark_chapter_id"] is not None:
+        bc = conn.execute(
+            "SELECT slug, title FROM chapters WHERE id=?", (reader["bookmark_chapter_id"],)).fetchone()
+        if bc:
+            bookmark = {"slug": bc["slug"], "title": bc["title"], "block_idx": reader["bookmark_block_idx"]}
     conn.close()
     return templates.TemplateResponse(request, "index.html", {
         "reader": reader, "book": book, "chapters": chapters, "token": token,
-        "server_progress": server_progress,
+        "server_progress": server_progress, "bookmark": bookmark,
     })
 
 
@@ -243,6 +250,8 @@ def chapter(request: Request, token: str, ch_slug: str):
     # "Revised" note only for readers who already knew the chapter before the change
     first_seen = conn.execute("SELECT first_seen_at FROM reader_activity WHERE reader_id=?", (reader["id"],)).fetchone()
     show_update_note = bool(ch["updated_at"] and first_seen and first_seen["first_seen_at"] < ch["updated_at"])
+    # Manual bookmark: block idx only if the bookmark sits in THIS chapter (else empty → no marker here)
+    bookmark_idx = reader["bookmark_block_idx"] if reader["bookmark_chapter_id"] == ch["id"] else ""
     conn.close()
     return templates.TemplateResponse(request, "chapter.html", {
         "reader": reader, "book": book, "ch": ch, "blocks": blocks,
@@ -251,6 +260,7 @@ def chapter(request: Request, token: str, ch_slug: str):
         "my_reactions": [dict(r) for r in my_reactions],
         "my_answers": my_answers, "token": token, "pos": pos, "total": total,
         "server_pos": server_pos, "show_update_note": show_update_note,
+        "bookmark_idx": bookmark_idx,
     })
 
 
@@ -277,6 +287,11 @@ class ProgressIn(BaseModel):
     chapter_id: int
     max_block_idx: int = Field(ge=0)
     done: bool = False
+
+
+class BookmarkIn(BaseModel):
+    chapter_id: int
+    block_idx: int = Field(ge=0)
 
 
 @app.post("/api/r/{token}/comment")
@@ -396,6 +411,37 @@ def save_progress(token: str, body: ProgressIn):
         "done_at=COALESCE(done_at, excluded.done_at), "
         "updated_at=datetime('now')",
         (reader["id"], body.chapter_id, body.max_block_idx, 1 if body.done else 0),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/r/{token}/bookmark")
+def set_bookmark(token: str, body: BookmarkIn):
+    # Set/move the single "continue reading" bookmark. Because it's one column pair
+    # on readers, writing a new position implicitly clears the old one.
+    conn = get_db()
+    reader = reader_or_404(conn, token)
+    check_chapter_in_book(conn, body.chapter_id, reader)
+    touch_reader(conn, reader["id"])
+    conn.execute(
+        "UPDATE readers SET bookmark_chapter_id=?, bookmark_block_idx=? WHERE id=?",
+        (body.chapter_id, body.block_idx, reader["id"]),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/r/{token}/bookmark/clear")
+def clear_bookmark(token: str):
+    conn = get_db()
+    reader = reader_or_404(conn, token)
+    touch_reader(conn, reader["id"])
+    conn.execute(
+        "UPDATE readers SET bookmark_chapter_id=NULL, bookmark_block_idx=NULL WHERE id=?",
+        (reader["id"],),
     )
     conn.commit()
     conn.close()

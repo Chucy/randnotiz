@@ -12,14 +12,16 @@
 </nav>
 
 <div class="onboarding" id="onboarding" hidden>
-  <span>👆 <strong>Tipp:</strong> Tippe auf einen Absatz, um ihn zu kommentieren oder zu bewerten.</span>
+  <span>👆 <strong>Tipp:</strong> Tippe auf einen Absatz, um ihn zu kommentieren, zu bewerten
+  oder als <strong>🔖 Lesezeichen</strong> zu merken. Mit <strong>„📖 Hier weiterlesen"</strong>
+  springst du jederzeit an genau diese Stelle zurück — egal wie weit du gescrollt hast.</span>
   <button id="onboarding-ok">Alles klar</button>
 </div>
 
 <main class="container reader" id="reader"
       data-token="{{ token }}" data-chapter-id="{{ ch.id }}"
       data-slug="{{ ch.slug }}" data-title="{{ ch.title }}"
-      data-server-pos="{{ server_pos }}">
+      data-server-pos="{{ server_pos }}" data-bookmark-idx="{{ bookmark_idx }}">
   {% if show_update_note %}
   <div class="update-note">📝 Dieses Kapitel wurde am {{ ch.updated_at[8:10] }}.{{ ch.updated_at[5:7] }}. überarbeitet —
     deine älteren Kommentare können sich auf eine frühere Fassung beziehen.</div>
@@ -78,6 +80,7 @@
     <button class="reaction" data-kind="frage">❓ Unklar</button>
     <button class="reaction" data-kind="gaehn">😴 Zäh</button>
   </div>
+  <button class="bookmark-btn" id="bookmark-toggle">🔖 Als Lesezeichen merken</button>
   <div id="sheet-comments"></div>
   <textarea id="comment-text" rows="3" placeholder="Dein Kommentar zu dieser Stelle …"></textarea>
   <div class="sheet-actions">
@@ -85,6 +88,8 @@
     <button class="primary" id="comment-send">Kommentar senden</button>
   </div>
 </div>
+
+<button class="fab-continue" id="continue-btn" hidden>📖 Hier weiterlesen</button>
 
 <script>
   window.MY_COMMENTS = {{ my_comments | tojson }};

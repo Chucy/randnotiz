@@ -130,10 +130,12 @@ body {
 .ch-state { color: var(--accent); font-family: system-ui, sans-serif; font-weight: 700; }
 
 /* Reading view */
-.block { padding: 0.15rem 0.5rem; margin: 0 -0.5rem; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
+.block { position: relative; padding: 0.15rem 0.5rem; margin: 0 -0.5rem; border-radius: 6px; cursor: pointer; border-left: 3px solid transparent; }
 .block:hover { background: var(--accent-soft); }
 .block.selected { background: var(--accent-soft); outline: 2px solid var(--accent); }
 .block.has-note { border-left-color: var(--accent); }
+.block.bookmarked { border-left-color: #d98b2b; background: rgba(217,139,43,0.10); }
+.block.bookmarked::after { content: "🔖"; position: absolute; top: 0.15rem; right: 0.3rem; font-size: 0.85rem; pointer-events: none; }
 .block h1 { font-size: 1.6rem; }
 .block pre { overflow-x: auto; font-size: 0.85rem; background: var(--accent-soft); padding: 0.7rem; border-radius: 6px; }
 .block img { max-width: 100%; }
@@ -213,6 +215,17 @@ button.secondary {
   border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; cursor: pointer;
 }
 .reaction.active { background: var(--accent-soft); border-color: var(--accent); }
+.bookmark-btn {
+  width: 100%; border: 1px solid var(--border); background: transparent; color: var(--fg);
+  border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; cursor: pointer; margin-bottom: 0.7rem;
+}
+.bookmark-btn.active { background: rgba(217,139,43,0.14); border-color: #d98b2b; }
+.fab-continue {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 1rem; z-index: 15;
+  border: none; background: var(--accent); color: #fff; border-radius: 22px;
+  padding: 0.6rem 1.1rem; font-size: 0.95rem; font-family: system-ui, sans-serif;
+  cursor: pointer; box-shadow: 0 3px 14px rgba(0,0,0,0.25);
+}
 .my-comment { font-size: 0.9rem; margin-bottom: 0.4rem; color: var(--muted); }
 .sheet-actions { display: flex; justify-content: space-between; gap: 0.6rem; margin-top: 0.7rem; }
 

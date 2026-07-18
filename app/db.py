@@ -113,6 +113,9 @@ MIGRATIONS = [
     ("comments", "orphaned", "INTEGER NOT NULL DEFAULT 0"),
     ("comments", "edited_at", "TEXT"),
     ("readers", "book_id", "INTEGER REFERENCES books(id)"),
+    # Manual "continue reading" bookmark — exactly one per reader/book (NULL = none).
+    ("readers", "bookmark_chapter_id", "INTEGER REFERENCES chapters(id)"),
+    ("readers", "bookmark_block_idx", "INTEGER"),
 ]
 
 

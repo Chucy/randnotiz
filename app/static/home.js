@@ -28,13 +28,23 @@
     document.getElementById("progress-label").textContent = `${done} von ${items.length} Kapiteln gelesen`;
   }
 
-  try {
-    const last = JSON.parse(localStorage.getItem(ns + "last") || "null");
-    if (last && last.slug) {
-      const card = document.getElementById("continue-card");
-      card.href = `/r/${window.BR_TOKEN}/k/${last.slug}`;
-      document.getElementById("continue-title").textContent = last.title;
-      card.hidden = false;
-    }
-  } catch (e) { /* corrupt localStorage entry — ignore */ }
+  // A manual bookmark wins over the auto "last read" card and jumps straight to the marked block.
+  const bm = window.SERVER_BOOKMARK;
+  if (bm && bm.slug) {
+    const card = document.getElementById("continue-card");
+    card.href = `/r/${window.BR_TOKEN}/k/${bm.slug}#weiterlesen`;
+    card.querySelector(".continue-label").textContent = "🔖 Hier weiterlesen";
+    document.getElementById("continue-title").textContent = bm.title;
+    card.hidden = false;
+  } else {
+    try {
+      const last = JSON.parse(localStorage.getItem(ns + "last") || "null");
+      if (last && last.slug) {
+        const card = document.getElementById("continue-card");
+        card.href = `/r/${window.BR_TOKEN}/k/${last.slug}`;
+        document.getElementById("continue-title").textContent = last.title;
+        card.hidden = false;
+      }
+    } catch (e) { /* corrupt localStorage entry — ignore */ }
+  }
 })();

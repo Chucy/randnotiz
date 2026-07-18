@@ -41,6 +41,7 @@
 <script>
   window.BR_TOKEN = {{ token | tojson }};
   window.SERVER_PROGRESS = {{ server_progress | tojson }};
+  window.SERVER_BOOKMARK = {{ bookmark | tojson }};
 </script>
 {% endblock %}
 {% block scripts %}<script src="/static/home.js"></script>{% endblock %}
