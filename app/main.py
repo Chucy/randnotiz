@@ -471,7 +471,7 @@ def admin_logout():
 
 
 @app.get("/admin", response_class=HTMLResponse)
-def admin(request: Request, book: str = "", chapter: int = 0, status: str = "open", reader: int = 0):
+def admin(request: Request, book: str = "", chapter: int = -1, status: str = "open", reader: int = 0):
     if not admin_ok(request):
         return HTMLResponse(LOGIN_HTML.replace("<!--ERR-->", ""))
     if status not in ("open", "resolved", "all"):
@@ -497,7 +497,7 @@ def admin(request: Request, book: str = "", chapter: int = 0, status: str = "ope
     # with 500+ comments, this keeps only the actually needed subset in the DOM.
     cwhere = ["c.book_id=?"]
     cargs: list = [bid]
-    if chapter:
+    if chapter >= 0:  # chapter 0 (Vorwort) is a real chapter — only -1 means "all chapters"
         cwhere.append("c.num=?"); cargs.append(chapter)
     if status == "open":
         cwhere.append("cm.resolved=0")
@@ -599,6 +599,10 @@ def admin_redirect(book_slug: str, anchor: str = "", **params) -> RedirectRespon
     if book_slug:
         q.append(f"book={quote(book_slug)}")
     for k, v in params.items():
+        if k == "chapter":
+            if v is not None and v >= 0:  # keep chapter 0 (Vorwort); only -1 means "all"
+                q.append(f"chapter={quote(str(v))}")
+            continue
         if v:  # skip 0 / "" / None — then the route default kicks in
             q.append(f"{k}={quote(str(v))}")
     url = "/admin" + ("?" + "&".join(q) if q else "")
@@ -616,7 +620,7 @@ def book_by_slug_or_400(conn, slug: str):
 
 @app.post("/admin/comment/{comment_id}/toggle")
 def toggle_comment_resolved(request: Request, comment_id: int, book: str = "",
-                            chapter: int = 0, status: str = "", reader: int = 0):
+                            chapter: int = -1, status: str = "", reader: int = 0):
     require_admin(request)
     conn = get_db()
     if not conn.execute("SELECT 1 FROM comments WHERE id=?", (comment_id,)).fetchone():

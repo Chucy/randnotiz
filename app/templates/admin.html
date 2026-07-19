@@ -123,7 +123,7 @@
     </label>
     <label>Kapitel
       <select name="chapter" onchange="this.form.submit()">
-        <option value="0">Alle</option>
+        <option value="-1" {% if filter_chapter < 0 %}selected{% endif %}>Alle</option>
         {% for ch in chapter_list %}
         <option value="{{ ch.num }}" {% if filter_chapter == ch.num %}selected{% endif %}>{{ ch.num }} — {{ ch.title }}</option>
         {% endfor %}
@@ -139,7 +139,7 @@
     </label>
     <noscript><button type="submit">Filtern</button></noscript>
   </form>
-  {% if not filter_chapter %}
+  {% if filter_chapter < 0 %}
   {# Übersicht: pro Kapitel eine Kachel — konstant klein, egal wie viele Kommentare im Buch stecken.
      Klick auf eine Kachel zoomt in die gefilterte Detailliste (Status/Leser bleiben erhalten). #}
   <div class="chapter-grid">
